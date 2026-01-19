@@ -1,70 +1,253 @@
 # Triathlon Program Generator
 
-An AI-powered workout program generator for triathlon training using Anthropic's Claude LLM.
+AI-powered triathlon training program generator with structured workouts, periodization, and intelligent scheduling.
 
-## Features
+## ✨ Features
 
-- **Structured Workouts**: Generate detailed swim, bike, and run workouts with intervals and recovery periods
+- **Multi-User Support**: Secure authentication with Microsoft Entra External ID
+- **User Data Isolation**: Each user only sees their own training programs
+- **Structured Workouts**: Detailed swim, bike, and run workouts with intervals and recovery
+- **Intelligent Scheduling**: Workouts automatically distributed across the week
 - **Periodization**: Monthly training plans with progressive overload
-- **Training Goals**: Customized programs for Sprint, Olympic, Half Ironman, and Full Ironman distances
-- **Data Persistence**: Save and track workout history
-- **Web Interface**: Easy-to-use web application
+- **Multiple Race Distances**: Sprint, Olympic, Half Ironman, Full Ironman
+- **Flexible AI Backend**: Azure OpenAI with Managed Identity (no API keys!)
+- **Web Interface**: Easy-to-use interface for program generation
+- **REST API**: Full API for integration
 
-## Setup
+---
 
-1. Create a virtual environment:
+## 🚀 Quick Start
+
+### Option 1: Deploy to Azure (Recommended)
+
+**Prerequisites:** Azure CLI installed and logged in
+
+```powershell
+# Clone and navigate to project
+cd triathlon-program-generator
+
+# Deploy with Azure OpenAI + Managed Identity (no API keys!)
+.\deploy-azure-openai.ps1
+```
+
+This will:
+- Create Azure OpenAI resource with GPT-4o-mini
+- Set up App Service with Managed Identity  
+- Configure secure authentication
+- Deploy your application
+
+**Time:** ~5-10 minutes | **Cost:** ~$15-20/month
+
+### Option 2: Docker (Local or Cloud)
+
+```bash
+# Copy and configure environment
+cp .env.example .env
+# Edit .env with your API keys
+
+# Run with Docker Compose
+docker-compose up -d
+
+# Access at http://localhost:8000
+```
+
+### Option 3: Local Python
+
 ```bash
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-2. Install dependencies:
-```bash
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-```
-
-3. Configure environment variables:
-```bash
 cp .env.example .env
-# Edit .env and add your ANTHROPIC_API_KEY
-```
-
-4. Run the application:
-```bash
+# Edit .env with your API keys
 python app/main.py
 ```
 
-5. Open your browser to `http://localhost:8000`
+---
 
-## Usage
+## ⚙️ Configuration
 
-1. Navigate to the web interface
-2. Select your training goal (distance/race type)
-3. Specify your current fitness level and available training hours
-4. Generate a personalized workout program
-5. View and save your workouts
+### Environment Variables
 
-## API Endpoints
+Create `.env` file from `.env.example`:
 
-- `POST /api/workouts/generate` - Generate a new workout program
-- `GET /api/workouts` - List all saved workouts
-- `GET /api/workouts/{id}` - Get a specific workout
-- `DELETE /api/workouts/{id}` - Delete a workout
-
-## Deployment
-
-### Deploy to Azure App Services
-
-See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions on deploying to Azure.
-
-**Quick deploy:**
 ```bash
-az login
-az webapp up --name triathlon-program-generator --runtime "PYTHON:3.11" --sku B1
+# LLM Provider (Azure OpenAI only)
+LLM_PROVIDER=azure_ai
+
+# === Azure OpenAI Configuration ===
+AZURE_AI_ENDPOINT=https://your-resource.openai.azure.com/
+AZURE_AI_DEPLOYMENT_NAME=gpt-4o-mini
+AZURE_AI_API_VERSION=2024-02-15-preview
+
+# Authentication: "api_key" or "entra_id" (Managed Identity)
+AZURE_AI_AUTH=entra_id
+# AZURE_AI_API_KEY=xxx  # Only if using api_key auth
+
+# === Multi-User Authentication (Optional) ===
+# Set to false for single-user mode (development)
+ENABLE_AUTH=true
+
+# Microsoft Entra External ID configuration
+ENTRA_TENANT_ID=your-tenant-id
+ENTRA_CLIENT_ID=your-client-id
+ENTRA_CLIENT_SECRET=your-client-secret
+ENTRA_REDIRECT_URI=https://your-app.azurewebsites.net/auth/callback
+SESSION_SECRET_KEY=generate-a-secure-random-key
+
+# Database
+DATABASE_URL=sqlite:///./workouts.db
 ```
 
-Then set your `ANTHROPIC_API_KEY` in Azure Portal → Configuration → Application Settings.
+**For authentication setup, see [ENTRA_EXTERNAL_ID_SETUP.md](ENTRA_EXTERNAL_ID_SETUP.md)**
 
-## License
+---
 
-MIT
+## 📡 API Endpoints
+
+### Health Checks
+- `GET /health` - Basic health status
+- `GET /health/ready` - Readiness check (database + LLM)
+- `GET /health/live` - Liveness check
+
+### Workouts
+- `POST /api/workouts/generate` - Generate training program
+- `GET /api/workouts` - List saved workouts
+- `GET /api/workouts/{id}` - Get specific workout
+- `DELETE /api/workouts/{id}` - Delete workout
+
+### Example Request
+
+```bash
+curl -X POST https://your-app.azurewebsites.net/api/workouts/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "goal": "sprint",
+    "fitness_level": "beginner",
+    "available_hours_per_week": 6,
+    "duration_weeks": 12
+  }'
+```
+
+---
+
+## 🏗️ Project Structure
+
+```
+triathlon-program-generator/
+├── app/
+│   ├── agent_azure_ai.py     # Azure OpenAI agent
+│   ├── prompts.py            # Shared prompt templates
+│   ├── models.py             # Pydantic data models
+│   ├── database.py           # SQLAlchemy database
+│   ├── repository.py         # Data access layer
+│   ├── utils.py              # Helper functions
+│   ├── config.py             # Configuration
+│   ├── main.py               # FastAPI application
+│   └── templates/            # Web UI templates
+├── requirements.txt          # Python dependencies
+├── Dockerfile                # Container definition
+├── docker-compose.yml        # Local Docker setup
+├── startup.sh                # App Service startup
+├── deploy-azure-openai.ps1   # Azure deployment script
+└── .env.example              # Environment template
+```
+
+---
+
+## 🔒 Security Best Practices
+
+### Production Checklist
+- ✅ Use Azure Managed Identity (no API keys)
+- ✅ Enable HTTPS only
+- ✅ Use Azure Key Vault for secrets
+- ✅ Enable App Service authentication
+- ✅ Configure CORS properly
+- ✅ Use PostgreSQL/Azure SQL for production database
+
+### Managed Identity Setup (No API Keys!)
+
+```bash
+# Enable managed identity
+az webapp identity assign --resource-group rg --name app-name
+
+# Grant access to Azure OpenAI
+az role assignment create \
+  --role "Cognitive Services OpenAI User" \
+  --assignee <identity-principal-id> \
+  --scope <openai-resource-id>
+```
+
+---
+
+## 📚 Additional Documentation
+
+- **[README.Docker.md](README.Docker.md)** - Docker deployment guide
+- **[AZURE_OPENAI_GUIDE.md](AZURE_OPENAI_GUIDE.md)** - Azure OpenAI reference
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Detailed deployment options
+
+---
+
+## 🛠️ Development
+
+### Local Development
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run in dev mode with hot reload
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### Code Structure
+
+- **Agents**: Azure OpenAI integration
+- **Prompts**: Shared prompt templates
+- **Models**: Pydantic schemas for validation
+- **Utils**: Weekday assignment, helpers
+- **Repository**: Database operations
+
+---
+
+## 🆘 Troubleshooting
+
+**"Authorization failed" with Managed Identity"**
+```bash
+# Re-grant permissions
+az role assignment create \
+  --role "Cognitive Services OpenAI User" \
+  --assignee <principal-id> \
+  --scope <openai-resource-id>
+```
+
+**App won't start**
+```bash
+az webapp log tail --resource-group rg --name app-name
+az webapp restart --resource-group rg --name app-name
+```
+
+---
+
+## 💰 Cost Estimates
+
+**Azure Setup (monthly):**
+- App Service B1: ~$13
+- Azure OpenAI: ~$3-10 (usage-based)
+- **Total: ~$15-25/month**
+
+**Free Tier Option:**
+- App Service F1: $0 (with limitations)
+- Azure OpenAI: ~$3-10/month (usage-based)
+- **Total: ~$3-10/month**
+
+---
+
+## 📝 License
+
+MIT License
+
+---
+
+**Built with ❤️ for triathletes**
+
+🌐 **Live Demo**: https://triathlon-program-generator.azurewebsites.net

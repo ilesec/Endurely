@@ -9,6 +9,16 @@ class Sport(str, Enum):
     RUN = "run"
 
 
+class Weekday(str, Enum):
+    MONDAY = "Monday"
+    TUESDAY = "Tuesday"
+    WEDNESDAY = "Wednesday"
+    THURSDAY = "Thursday"
+    FRIDAY = "Friday"
+    SATURDAY = "Saturday"
+    SUNDAY = "Sunday"
+
+
 class RaceDistance(str, Enum):
     SPRINT = "sprint"  # 750m swim, 20km bike, 5km run
     OLYMPIC = "olympic"  # 1.5km swim, 40km bike, 10km run
@@ -32,22 +42,29 @@ class WorkoutInterval(BaseModel):
 class Workout(BaseModel):
     sport: Sport
     title: str
+    day: Weekday  # Required field - must be specified
+    is_rest_day: bool = False
     total_duration_minutes: int
     total_distance_km: Optional[float] = None
-    warmup: str
-    main_set: List[WorkoutInterval]
-    cooldown: str
+    warmup: str = ""  # Optional for rest days
+    main_set: List[WorkoutInterval] = []  # Empty for rest days
+    cooldown: str = ""  # Optional for rest days
     notes: Optional[str] = None
     
     @field_validator('sport', mode='before')
     @classmethod
     def lowercase_sport(cls, v):
         if isinstance(v, str):
-            v = v.lower()
-            # Map 'brick' to 'bike' (brick workouts are bike-to-run transitions)
-            if v == 'brick':
-                return 'bike'
-            return v
+            v = v.lower().strip()
+            # Map rest days and brick workouts to valid sports
+            if v == 'rest':
+                return 'swim'  # Default to swim for rest days (is_rest_day will be true)
+            if 'bike' in v and 'run' in v:  # brick, bike-run, bike/run, etc.
+                return 'bike'  # Brick workouts are bike-to-run transitions, use bike as primary
+            if v in ['swim', 'bike', 'run']:
+                return v
+            # If none match, default to run
+            return 'run'
         return v
 
 
@@ -70,7 +87,14 @@ class TrainingProgram(BaseModel):
     @classmethod
     def lowercase_enums(cls, v):
         if isinstance(v, str):
-            return v.lower()
+            # Handle variations like "sprint triathlon" -> "sprint"
+            v = v.lower().replace(' triathlon', '').strip()
+            # Map common variations
+            if v in ['70.3', 'half-ironman', 'half ironman']:
+                return 'half_ironman'
+            if v in ['140.6', 'full-ironman', 'full ironman', 'ironman']:
+                return 'full_ironman'
+            return v
         return v
 
 

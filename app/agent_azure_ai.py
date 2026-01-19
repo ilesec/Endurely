@@ -3,13 +3,11 @@ from typing import Dict, Any
 from openai import AzureOpenAI
 import json
 from azure.identity import DefaultAzureCredential
+
 from app.config import settings
-from app.models import (
-    WorkoutRequest,
-    TrainingProgram,
-    RaceDistance,
-    FitnessLevel,
-)
+from app.utils import assign_weekdays_to_workouts
+from app.prompts import SYSTEM_PROMPT, build_user_prompt
+from app.models import WorkoutRequest, TrainingProgram
 
 
 class TriathlonWorkoutAgentAzureAI:
@@ -122,114 +120,8 @@ class TriathlonWorkoutAgentAzureAI:
                 return _call_with_max_completion_tokens(effective_kwargs)
             raise
     
-    def _build_system_prompt(self) -> str:
-        """Build the system prompt for the workout generation agent."""
-        return """You are an expert triathlon coach with 20+ years of experience training athletes for Sprint, Olympic, Half Ironman, and Full Ironman distances.
-
-Your role is to create structured, periodized training programs that include:
-- Swim, bike, and run workouts
-- Specific intervals with duration/distance and intensity zones
-- Proper warmup and cooldown protocols
-- Progressive overload and recovery weeks
-- Monthly periodization (base, build, peak, taper phases)
-
-Key principles:
-1. **Intensity Zones**: Use these standard zones:
-   - Zone 1: Recovery (very easy, conversational)
-   - Zone 2: Aerobic/Endurance (comfortable, still conversational)
-   - Zone 3: Tempo (moderately hard, some breathing effort)
-   - Zone 4: Threshold (hard, sustained effort)
-   - Zone 5: VO2 Max (very hard, short intervals)
-
-2. **Periodization**: Structure programs in phases:
-   - Base Phase (60-70% of total time): Build aerobic base, Zone 2 focus
-   - Build Phase (20-30%): Add intensity, Zone 3-4 work
-   - Peak Phase (5-10%): Race-specific intensity
-   - Taper Phase (1-2 weeks): Reduce volume, maintain intensity
-
-3. **Weekly Structure**: Balance stress and recovery:
-   - Hard days followed by easy/recovery days
-   - Long endurance sessions on weekends
-   - Brick workouts (bike-to-run transitions)
-   - At least 1 full rest day per week
-
-4. **Progression**: Increase volume by 10-15% per week max, with recovery weeks every 3-4 weeks.
-
-You must respond with valid JSON matching the TrainingProgram schema."""
-
-    def _build_user_prompt(self, request: WorkoutRequest) -> str:
-        """Build the user prompt with specific workout requirements."""
-        
-        race_distances = {
-            RaceDistance.SPRINT: "Sprint (750m swim, 20km bike, 5km run)",
-            RaceDistance.OLYMPIC: "Olympic (1.5km swim, 40km bike, 10km run)",
-            RaceDistance.HALF_IRONMAN: "Half Ironman (1.9km swim, 90km bike, 21.1km run)",
-            RaceDistance.FULL_IRONMAN: "Full Ironman (3.8km swim, 180km bike, 42.2km run)",
-        }
-        
-        prompt = f"""Create a {request.duration_weeks}-week training program for the following athlete:
-
-**Goal**: {race_distances[request.goal]}
-**Fitness Level**: {request.fitness_level.value}
-**Available Training Time**: {request.available_hours_per_week} hours per week
-**Current Week**: Week {request.current_week}
-"""
-        
-        if request.focus_areas:
-            prompt += f"**Focus Areas**: {', '.join(request.focus_areas)}\n"
-        
-        prompt += """
-Generate a complete training program in JSON format. Be CONCISE in descriptions.
-
-**Required JSON Format**:
-```json
-{
-  "goal": "race_distance",
-  "fitness_level": "level",
-  "duration_weeks": number,
-  "weeks": [
-    {
-      "week_number": 1,
-      "focus": "Base Building",
-      "workouts": [
-        {
-          "sport": "swim|bike|run",
-          "title": "Workout Title",
-          "total_duration_minutes": 60,
-          "total_distance_km": 5.0,
-          "warmup": "10 min easy",
-          "main_set": [
-            {
-              "duration_minutes": 20,
-              "distance_km": 2.0,
-              "intensity": "Zone 2",
-              "description": "Aerobic swim"
-            }
-          ],
-          "cooldown": "5 min easy",
-          "notes": "Technique focus"
-        }
-      ],
-      "weekly_volume_hours": 6.5,
-      "weekly_distance_km": 50.0
-    }
-  ],
-  "notes": "Program overview"
-}
-```
-
-**Guidelines**:
-1. Create 5-6 workouts per week based on available hours
-2. Include all three sports distributed appropriately
-3. Keep descriptions brief (5-10 words max)
-4. Include one brick workout per week
-5. Progressive volume with recovery weeks every 3-4 weeks
-6. Return ONLY valid JSON, no markdown or extra text
-"""
-        
-        return prompt
-
     def _extract_json_object_text(self, content: str) -> str:
+        """Extract JSON from response, removing markdown and extra text."""
         content = (content or "").strip()
 
         # Remove markdown code blocks if present.
@@ -248,18 +140,14 @@ Generate a complete training program in JSON format. Be CONCISE in descriptions.
     
     def generate_program(self, request: WorkoutRequest) -> TrainingProgram:
         """Generate a complete training program using Azure AI."""
-        
         # For longer programs (>6 weeks), generate week-by-week to avoid token limits
         if request.duration_weeks > 6:
             return self._generate_program_progressive(request)
         
-        system_prompt = self._build_system_prompt()
-        user_prompt = self._build_user_prompt(request)
-        
         response = self._create_chat_completion(
             messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": build_user_prompt(request, concise=True)},
             ],
             temperature=None,
             max_output_tokens=16000,
@@ -299,13 +187,18 @@ Generate a complete training program in JSON format. Be CONCISE in descriptions.
                 "Model did not return valid JSON. "
                 f"First 800 chars: {preview!r}"
             ) from exc
+        
+        # Auto-assign weekdays if the AI didn't provide them
+        program_data = assign_weekdays_to_workouts(program_data)
+        
         program = TrainingProgram(**program_data)
         
         return program
     
     def _generate_program_progressive(self, request: WorkoutRequest) -> TrainingProgram:
         """Generate a program week-by-week for longer training plans."""
-        from app.models import WeekPlan, RaceDistance, FitnessLevel
+        from app.models import WeekPlan
+        from app.prompts import RACE_DISTANCES
         
         # Determine periodization phases
         total_weeks = request.duration_weeks
@@ -351,15 +244,12 @@ Generate a complete training program in JSON format. Be CONCISE in descriptions.
         phase: str
     ) -> Dict[str, Any]:
         """Generate a single week of training (useful for ongoing programs)."""
+        from app.prompts import RACE_DISTANCES
         
-        race_distances = {
-            RaceDistance.SPRINT: "Sprint (750m swim, 20km bike, 5km run)",
-            RaceDistance.OLYMPIC: "Olympic (1.5km swim, 40km bike, 10km run)",
-            RaceDistance.HALF_IRONMAN: "Half Ironman (1.9km swim, 90km bike, 21.1km run)",
-            RaceDistance.FULL_IRONMAN: "Full Ironman (3.8km swim, 180km bike, 42.2km run)",
-        }
+        goal_value = request.goal.value if hasattr(request.goal, 'value') else request.goal
+        race_distance = RACE_DISTANCES.get(goal_value, goal_value)
         
-        prompt = f"""Create Week {week_number} of a {request.duration_weeks}-week {race_distances[request.goal]} training program.
+        prompt = f"""Create Week {week_number} of a {request.duration_weeks}-week {race_distance} training program.
 
 **Phase**: {phase}
 **Fitness Level**: {request.fitness_level.value}
@@ -399,7 +289,7 @@ Create 5-6 workouts. Include swim, bike, run. Keep descriptions under 10 words. 
         
         response = self._create_chat_completion(
             messages=[
-                {"role": "system", "content": self._build_system_prompt()},
+                {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
             temperature=None,
@@ -410,7 +300,10 @@ Create 5-6 workouts. Include swim, bike, run. Keep descriptions under 10 words. 
         content = self._extract_json_object_text(response.choices[0].message.content)
 
         try:
-            return json.loads(content)
+            week_data = json.loads(content)
+            # Auto-assign weekdays if missing
+            week_data = assign_weekdays_to_workouts({"weeks": [week_data]})["weeks"][0]
+            return week_data
         except json.JSONDecodeError as exc:
             preview = content[:800].replace("\n", "\\n")
             raise ValueError(

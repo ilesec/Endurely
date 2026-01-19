@@ -35,10 +35,12 @@ if not exist .env (
     copy .env.example .env
     echo.
     echo ================================================
-    echo IMPORTANT: Configure your API key
+    echo IMPORTANT: Configure Azure OpenAI
     echo ================================================
-    echo Please edit the .env file and add your Anthropic API key
-    echo Then run: python test_setup.py
+    echo Please edit the .env file and add your Azure OpenAI configuration:
+    echo - AZURE_AI_ENDPOINT
+    echo - AZURE_AI_DEPLOYMENT_NAME
+    echo - AZURE_AI_AUTH (entra_id or api_key)
     echo.
     pause
 ) else (
@@ -52,8 +54,8 @@ echo.
 echo Setup complete!
 echo.
 echo Next steps:
-echo 1. Make sure your .env file has your ANTHROPIC_API_KEY
+echo 1. Edit .env file with your Azure OpenAI configuration
 echo 2. Run the web app: python app/main.py
-echo 3. Or try the example: python example.py
+echo 3. Access at: http://localhost:8000
 echo.
 pause

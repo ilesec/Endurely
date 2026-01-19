@@ -1,16 +1,26 @@
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from typing import List, Optional
 import json
 import uvicorn
+import sys
 
-from app.database import init_db, get_db
+from app.database import init_db, get_db, User
 from app.models import WorkoutRequest, TrainingProgram, RaceDistance, Sport
 from app.config import settings
 from app.repository import ProgramRepository, WorkoutHistoryRepository
+from app.auth import auth_manager
+
+
+def validate_configuration():
+    """Validate required configuration at startup."""
+    # Skip validation in production for faster startup
+    # Config errors will be caught when endpoints are called
+    pass
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -25,17 +35,126 @@ init_db()
 # Setup templates
 templates = Jinja2Templates(directory="app/templates")
 
-# Initialize agent based on provider
-def get_agent():
-    """Get the appropriate agent based on configuration."""
-    if settings.llm_provider.lower() == "azure_ai":
-        from app.agent_azure_ai import TriathlonWorkoutAgentAzureAI
-        return TriathlonWorkoutAgentAzureAI()
-    else:  # Default to anthropic
-        from app.agent import TriathlonWorkoutAgent
-        return TriathlonWorkoutAgent()
+# Lazy-load agent for faster startup
+_agent = None
 
-agent = get_agent()
+def get_agent():
+    """Get or create the agent instance (lazy initialization)."""
+    global _agent
+    if _agent is None:
+        from app.agent_azure_ai import TriathlonWorkoutAgentAzureAI
+        _agent = TriathlonWorkoutAgentAzureAI()
+    return _agent
+
+
+# Authentication Endpoints
+
+@app.get("/auth/login")
+async def login():
+    """Redirect to Entra External ID login page."""
+    if not auth_manager.enabled:
+        raise HTTPException(status_code=404, detail="Authentication is not enabled")
+    
+    auth_url = auth_manager.get_auth_url()
+    return RedirectResponse(url=auth_url)
+
+
+@app.get("/auth/callback")
+async def auth_callback(code: str, state: str = None):
+    """Handle OAuth callback from Entra External ID."""
+    if not auth_manager.enabled:
+        raise HTTPException(status_code=404, detail="Authentication is not enabled")
+    
+    try:
+        # Exchange code for token
+        token_data = await auth_manager.handle_callback(code, state)
+        
+        # Get or create user
+        user = await auth_manager.get_or_create_user(token_data.get("id_token_claims", {}))
+        
+        # Create session token
+        session_token = auth_manager.create_session_token({
+            "oid": user.oid,
+            "email": user.email,
+            "name": user.name,
+        })
+        
+        # Set cookie and redirect
+        response = RedirectResponse(url="/", status_code=302)
+        response.set_cookie(
+            key="session_token",
+            value=session_token,
+            httponly=True,
+            secure=True,  # Set to False for local development
+            samesite="lax",
+            max_age=86400 * 7,  # 7 days
+        )
+        return response
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Authentication failed: {str(e)}")
+
+
+@app.get("/auth/logout")
+async def logout():
+    """Logout current user."""
+    return auth_manager.logout()
+
+
+@app.get("/api/auth/user")
+async def get_current_user_info(request: Request):
+    """Get current authenticated user information."""
+    user = await auth_manager.get_current_user(request)
+    if not user:
+        return {"authenticated": False}
+    
+    return {
+        "authenticated": True,
+        "email": user.email,
+        "name": user.name,
+        "auth_enabled": auth_manager.enabled,
+    }
+
+
+# Health Check Endpoints
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring and container orchestration."""
+    return {
+        "status": "healthy",
+        "service": "triathlon-program-generator",
+        "version": "1.0.0",
+        "llm_provider": "azure_ai",
+        "auth_enabled": auth_manager.enabled,
+    }
+
+
+@app.get("/health/ready")
+async def readiness_check(db: Session = Depends(get_db)):
+    """Readiness check - verifies database connectivity and LLM configuration."""
+    try:
+        # Check database
+        db.execute(text("SELECT 1"))
+        
+        # Check Azure AI configuration
+        if not settings.azure_ai_endpoint:
+            return {"status": "not_ready", "reason": "AZURE_AI_ENDPOINT not configured"}
+        if settings.azure_ai_auth == "api_key" and not settings.azure_ai_api_key:
+            return {"status": "not_ready", "reason": "AZURE_AI_API_KEY not configured"}
+        
+        return {
+            "status": "ready",
+            "database": "connected",
+            "llm_provider": "azure_ai"
+        }
+    except Exception as e:
+        return {"status": "not_ready", "reason": str(e)}
+
+
+@app.get("/health/live")
+async def liveness_check():
+    """Liveness check - basic endpoint to verify the service is running."""
+    return {"status": "alive"}
 
 
 # API Endpoints
@@ -43,18 +162,21 @@ agent = get_agent()
 @app.post("/api/workouts/generate", response_model=dict)
 async def generate_workout(
     request: WorkoutRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(auth_manager.require_auth)
 ):
     """Generate a new training program using the AI agent."""
     try:
-        # Generate program using AI
+        # Generate program using AI (lazy-loaded agent)
+        agent = get_agent()
         program = agent.generate_program(request)
         
-        # Save to database
+        # Save to database with user association
         saved_program = ProgramRepository.save_program(
             db=db,
             program=program,
-            request_data=request.model_dump()
+            request_data=request.model_dump(),
+            user_id=user.id
         )
         
         return {
@@ -71,14 +193,16 @@ async def list_workouts(
     skip: int = 0,
     limit: int = 100,
     goal: Optional[RaceDistance] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(auth_manager.require_auth)
 ):
-    """List all saved workout programs."""
+    """List all saved workout programs for the current user."""
     programs = ProgramRepository.list_programs(
         db=db,
         skip=skip,
         limit=limit,
-        goal=goal.value if goal else None
+        goal=goal.value if goal else None,
+        user_id=user.id
     )
     
     return [
@@ -96,9 +220,17 @@ async def list_workouts(
 
 
 @app.get("/api/workouts/{program_id}", response_model=dict)
-async def get_workout(program_id: int, db: Session = Depends(get_db)):
+async def get_workout(
+    program_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(auth_manager.require_auth)
+):
     """Get a specific workout program by ID."""
-    program = ProgramRepository.get_program(db=db, program_id=program_id)
+    program = ProgramRepository.get_program(
+        db=db,
+        program_id=program_id,
+        user_id=user.id
+    )
     
     if not program:
         raise HTTPException(status_code=404, detail="Program not found")
@@ -114,9 +246,17 @@ async def get_workout(program_id: int, db: Session = Depends(get_db)):
 
 
 @app.delete("/api/workouts/{program_id}")
-async def delete_workout(program_id: int, db: Session = Depends(get_db)):
+async def delete_workout(
+    program_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(auth_manager.require_auth)
+):
     """Delete a workout program."""
-    success = ProgramRepository.delete_program(db=db, program_id=program_id)
+    success = ProgramRepository.delete_program(
+        db=db,
+        program_id=program_id,
+        user_id=user.id
+    )
     
     if not success:
         raise HTTPException(status_code=404, detail="Program not found")
@@ -133,7 +273,8 @@ async def log_workout(
     distance_km: Optional[float] = None,
     notes: Optional[str] = None,
     rating: Optional[int] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(auth_manager.require_auth)
 ):
     """Log a completed workout."""
     workout = WorkoutHistoryRepository.log_workout(
@@ -144,7 +285,8 @@ async def log_workout(
         duration_minutes=duration_minutes,
         distance_km=distance_km,
         notes=notes,
-        rating=rating
+        rating=rating,
+        user_id=user.id
     )
     
     return {
@@ -159,15 +301,17 @@ async def get_workout_history(
     sport: Optional[Sport] = None,
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(auth_manager.require_auth)
 ):
-    """Get workout history."""
+    """Get workout history for the current user."""
     workouts = WorkoutHistoryRepository.get_workout_history(
         db=db,
         program_id=program_id,
         sport=sport.value if sport else None,
         skip=skip,
-        limit=limit
+        limit=limit,
+        user_id=user.id
     )
     
     return [

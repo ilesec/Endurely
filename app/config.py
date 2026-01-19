@@ -4,23 +4,7 @@ from typing import Optional
 
 
 class Settings(BaseSettings):
-    # LLM Provider: "anthropic" or "azure_ai"
-    llm_provider: str = Field(
-        default="anthropic",
-        validation_alias=AliasChoices("LLM_PROVIDER", "llm_provider"),
-    )
-    
-    # Anthropic settings
-    anthropic_api_key: Optional[str] = Field(
-        default=None,
-        validation_alias=AliasChoices(
-            "ANTHROPIC_API_KEY",
-            "CLAUDE_API_KEY",
-            "anthropic_api_key",
-        ),
-    )
-    
-    # Azure AI Studio settings
+    # Azure AI / OpenAI settings
     azure_ai_endpoint: Optional[str] = Field(
         default=None,
         validation_alias=AliasChoices(
@@ -76,6 +60,37 @@ class Settings(BaseSettings):
     
     # Database
     database_url: str = "sqlite:///./workouts.db"
+    
+    # Authentication (Entra External ID)
+    enable_auth: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("ENABLE_AUTH", "enable_auth"),
+    )
+    entra_tenant_id: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("ENTRA_TENANT_ID", "AZURE_AD_TENANT_ID", "entra_tenant_id"),
+    )
+    entra_client_id: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("ENTRA_CLIENT_ID", "AZURE_AD_CLIENT_ID", "entra_client_id"),
+    )
+    entra_client_secret: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("ENTRA_CLIENT_SECRET", "AZURE_AD_CLIENT_SECRET", "entra_client_secret"),
+    )
+    entra_redirect_uri: str = Field(
+        default="http://localhost:8000/auth/callback",
+        validation_alias=AliasChoices("ENTRA_REDIRECT_URI", "entra_redirect_uri"),
+    )
+    # CIAM domain for External ID (e.g., "triathlonapp" for triathlonapp.ciamlogin.com)
+    entra_ciam_domain: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("ENTRA_CIAM_DOMAIN", "entra_ciam_domain"),
+    )
+    session_secret_key: str = Field(
+        default="change-me-in-production-use-openssl-rand-hex-32",
+        validation_alias=AliasChoices("SESSION_SECRET_KEY", "SECRET_KEY", "session_secret_key"),
+    )
     
     class Config:
         env_file = ".env"

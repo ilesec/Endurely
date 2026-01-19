@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      # LLM Provider (Azure OpenAI only)
+      - LLM_PROVIDER=azure_ai
+      
+      # Azure OpenAI settings
+      - AZURE_AI_ENDPOINT=${AZURE_AI_ENDPOINT}
+      - AZURE_AI_API_KEY=${AZURE_AI_API_KEY}
+      - AZURE_AI_DEPLOYMENT_NAME=${AZURE_AI_DEPLOYMENT_NAME}
+      - AZURE_AI_API_VERSION=${AZURE_AI_API_VERSION:-2024-02-15-preview}
+      - AZURE_AI_AUTH=${AZURE_AI_AUTH:-api_key}
+      - AZURE_AI_MANAGED_IDENTITY_CLIENT_ID=${AZURE_AI_MANAGED_IDENTITY_CLIENT_ID}
+      
+      # Authentication (Entra External ID)
+      - ENABLE_AUTH=${ENABLE_AUTH:-false}
+      - ENTRA_TENANT_ID=${ENTRA_TENANT_ID}
+      - ENTRA_CLIENT_ID=${ENTRA_CLIENT_ID}
+      - ENTRA_CLIENT_SECRET=${ENTRA_CLIENT_SECRET}
+      - ENTRA_REDIRECT_URI=${ENTRA_REDIRECT_URI:-http://localhost:8000/auth/callback}
+      - ENTRA_CIAM_DOMAIN=${ENTRA_CIAM_DOMAIN}
+      - SESSION_SECRET_KEY=${SESSION_SECRET_KEY}
+      
+      # Database
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/workouts.db}
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped

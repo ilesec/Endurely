@@ -4,7 +4,7 @@
 
 1. **Azure CLI** - Install from: https://docs.microsoft.com/en-us/cli/azure/install-azure-cli
 2. **Azure Account** - Sign up at: https://azure.microsoft.com/free/
-3. **Anthropic API Key** - Get from: https://console.anthropic.com/
+3. **Azure OpenAI Resource** - Create in Azure Portal with GPT-4 or GPT-3.5 deployment
 
 ## Quick Deploy (Recommended)
 
@@ -26,9 +26,12 @@ az webapp create --resource-group triathlon-rg --plan triathlon-plan --name tria
 # Configure startup command (IMPORTANT: This must be set before deploying)
 az webapp config set --resource-group triathlon-rg --name triathlon-program-generator --startup-file "startup.sh"
 
-# Set environment variables (Replace with your actual API key)
+# Set environment variables (Replace with your actual Azure OpenAI details)
 az webapp config appsettings set --resource-group triathlon-rg --name triathlon-program-generator --settings \
-  ANTHROPIC_API_KEY="your-api-key-here" \
+  LLM_PROVIDER="azure_ai" \
+  AZURE_AI_ENDPOINT="https://your-resource.openai.azure.com/" \
+  AZURE_AI_DEPLOYMENT_NAME="gpt-4" \
+  AZURE_AI_AUTH="entra_id" \
   DATABASE_URL="sqlite:///./workouts.db" \
   SCM_DO_BUILD_DURING_DEPLOYMENT="true"
 
@@ -74,7 +77,10 @@ Set these in Azure Portal → Configuration → Application Settings:
 
 | Variable | Value | Description |
 |----------|-------|-------------|
-| `ANTHROPIC_API_KEY` | `sk-ant-...` | Your Anthropic API key |
+| `LLM_PROVIDER` | `azure_ai` | Use Azure OpenAI |
+| `AZURE_AI_ENDPOINT` | `https://your-resource.openai.azure.com/` | Your Azure OpenAI endpoint |
+| `AZURE_AI_DEPLOYMENT_NAME` | `gpt-4` or `gpt-35-turbo` | Your model deployment name |
+| `AZURE_AI_AUTH` | `entra_id` | Use managed identity (or `api_key`) |
 | `DATABASE_URL` | `sqlite:///./workouts.db` | Database connection string |
 | `SCM_DO_BUILD_DURING_DEPLOYMENT` | `true` | Enable build during deployment |
 
@@ -157,9 +163,10 @@ https://triathlon-program-generator.azurewebsites.net
 - Check DATABASE_URL format
 
 ### API errors
-- Verify ANTHROPIC_API_KEY is set correctly
-- Check Application Settings in Azure Portal
-- Test API key locally first
+- Verify Azure OpenAI endpoint and deployment name are correct
+- Check that managed identity has "Cognitive Services OpenAI User" role
+- Test Azure OpenAI connection using Azure Portal or Azure CLI
+- If using API key auth, verify AZURE_AI_API_KEY is set
 
 ### Performance issues
 - Scale up: `az appservice plan update --sku S1`

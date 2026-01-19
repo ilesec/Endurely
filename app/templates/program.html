@@ -90,12 +90,38 @@
             color: #666;
         }
         
+        .day-container {
+            margin-bottom: 25px;
+        }
+        
+        .day-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
         .workout {
             background: #f8f9fa;
             border-left: 4px solid #667eea;
             padding: 20px;
             margin-bottom: 15px;
+            margin-left: 20px;
             border-radius: 5px;
+        }
+        
+        .workout.rest-day {
+            background: #e8f5e9;
+            border-left-color: #4caf50;
+            padding: 15px 20px;
+            font-style: italic;
+            color: #2e7d32;
         }
         
         .workout.swim {
@@ -219,7 +245,15 @@
         async function loadProgram() {
             try {
                 const response = await fetch(`/api/workouts/${programId}`);
-                if (!response.ok) throw new Error('Failed to load program');
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        // User is not authenticated
+                        document.getElementById('loading').innerHTML = 
+                            '<p style="color: #c33;">Please <a href="/auth/login" style="color: #667eea; text-decoration: underline;">sign in</a> to view this program.</p>';
+                        return;
+                    }
+                    throw new Error('Failed to load program');
+                }
                 
                 const data = await response.json();
                 const program = data.program;
@@ -240,7 +274,26 @@
                 `;
                 
                 // Render weeks
-                const weeksHTML = program.weeks.map(week => `
+                const weeksHTML = program.weeks.map(week => {
+                    // Group workouts by day
+                    const workoutsByDay = {};
+                    const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                    
+                    // Initialize all days
+                    dayOrder.forEach(day => {
+                        workoutsByDay[day] = [];
+                    });
+                    
+                    // Group workouts
+                    week.workouts.forEach(workout => {
+                        const day = workout.day || 'Monday'; // Fallback for old data
+                        if (!workoutsByDay[day]) {
+                            workoutsByDay[day] = [];
+                        }
+                        workoutsByDay[day].push(workout);
+                    });
+                    
+                    return `
                     <div class="week-card">
                         <div class="week-header">
                             <h2>Week ${week.week_number}: ${week.focus}</h2>
@@ -250,54 +303,81 @@
                             </div>
                         </div>
                         
-                        ${week.workouts.map(workout => `
-                            <div class="workout ${workout.sport}">
-                                <div class="workout-header">
-                                    <span class="workout-title">${workout.title}</span>
-                                    <span class="sport-badge ${workout.sport}">${workout.sport.toUpperCase()}</span>
+                        ${dayOrder.map(day => {
+                            const dayWorkouts = workoutsByDay[day];
+                            if (dayWorkouts.length === 0) return '';
+                            
+                            return `
+                            <div class="day-container">
+                                <div class="day-header">
+                                    <span>${day}</span>
+                                    <span style="font-size: 14px; font-weight: normal; opacity: 0.9;">
+                                        ${dayWorkouts.filter(w => !w.is_rest_day).reduce((total, w) => total + w.total_duration_minutes, 0)} min
+                                    </span>
                                 </div>
-                                
-                                <div style="display: flex; gap: 20px; margin-bottom: 15px; color: #666;">
-                                    <span><strong>Duration:</strong> ${workout.total_duration_minutes} min</span>
-                                    ${workout.total_distance_km ? `<span><strong>Distance:</strong> ${workout.total_distance_km} km</span>` : ''}
-                                </div>
-                                
-                                <div class="workout-section">
-                                    <h4>Warmup</h4>
-                                    <p>${workout.warmup}</p>
-                                </div>
-                                
-                                <div class="workout-section">
-                                    <h4>Main Set</h4>
-                                    ${workout.main_set.map(interval => `
-                                        <div class="interval">
-                                            <div class="interval-header">
-                                                <span>
-                                                    ${interval.duration_minutes ? `${interval.duration_minutes} min` : ''}
-                                                    ${interval.distance_km ? `${interval.distance_km} km` : ''}
-                                                </span>
-                                                <span class="intensity">${interval.intensity}</span>
-                                            </div>
-                                            <p style="color: #666;">${interval.description}</p>
+                                ${dayWorkouts.map(workout => {
+                                    if (workout.is_rest_day) {
+                                        return `
+                                        <div class="workout rest-day">
+                                            <strong>🛌 Rest Day</strong> - Complete rest for recovery
+                                            ${workout.notes ? `<div style="margin-top: 8px;">${workout.notes}</div>` : ''}
                                         </div>
-                                    `).join('')}
-                                </div>
-                                
-                                <div class="workout-section">
-                                    <h4>Cooldown</h4>
-                                    <p>${workout.cooldown}</p>
-                                </div>
-                                
-                                ${workout.notes ? `
-                                    <div class="workout-section">
-                                        <h4>Notes</h4>
-                                        <p style="color: #666; font-style: italic;">${workout.notes}</p>
+                                        `;
+                                    }
+                                    
+                                    return `
+                                    <div class="workout ${workout.sport}">
+                                        <div class="workout-header">
+                                            <span class="workout-title">${workout.title}</span>
+                                            <span class="sport-badge ${workout.sport}">${workout.sport.toUpperCase()}</span>
+                                        </div>
+                                        
+                                        <div style="display: flex; gap: 20px; margin-bottom: 15px; color: #666;">
+                                            <span><strong>Duration:</strong> ${workout.total_duration_minutes} min</span>
+                                            ${workout.total_distance_km ? `<span><strong>Distance:</strong> ${workout.total_distance_km} km</span>` : ''}
+                                        </div>
+                                        
+                                        <div class="workout-section">
+                                            <h4>Warmup</h4>
+                                            <p>${workout.warmup}</p>
+                                        </div>
+                                        
+                                        <div class="workout-section">
+                                            <h4>Main Set</h4>
+                                            ${workout.main_set.map(interval => `
+                                                <div class="interval">
+                                                    <div class="interval-header">
+                                                        <span>
+                                                            ${interval.duration_minutes ? `${interval.duration_minutes} min` : ''}
+                                                            ${interval.distance_km ? `${interval.distance_km} km` : ''}
+                                                        </span>
+                                                        <span class="intensity">${interval.intensity}</span>
+                                                    </div>
+                                                    <p style="color: #666;">${interval.description}</p>
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                        
+                                        <div class="workout-section">
+                                            <h4>Cooldown</h4>
+                                            <p>${workout.cooldown}</p>
+                                        </div>
+                                        
+                                        ${workout.notes ? `
+                                            <div class="workout-section">
+                                                <h4>Notes</h4>
+                                                <p style="color: #666; font-style: italic;">${workout.notes}</p>
+                                            </div>
+                                        ` : ''}
                                     </div>
-                                ` : ''}
+                                    `;
+                                }).join('')}
                             </div>
-                        `).join('')}
+                            `;
+                        }).join('')}
                     </div>
-                `).join('');
+                `;
+                }).join('');
                 
                 document.getElementById('weeksContainer').innerHTML = weeksHTML;
                 

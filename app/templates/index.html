@@ -32,6 +32,7 @@
             color: white;
             padding: 40px;
             text-align: center;
+            position: relative;
         }
         
         header h1 {
@@ -42,6 +43,37 @@
         header p {
             font-size: 1.2em;
             opacity: 0.9;
+        }
+        
+        .user-info {
+            position: absolute;
+            top: 20px;
+            right: 40px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .user-email {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+        
+        .auth-button {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 8px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.9em;
+            transition: all 0.3s;
+        }
+        
+        .auth-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
         }
         
         .content {
@@ -190,6 +222,13 @@
 <body>
     <div class="container">
         <header>
+            <div class="user-info" id="userInfo" style="display: none;">
+                <span class="user-email" id="userEmail"></span>
+                <a href="/auth/logout" class="auth-button">Sign Out</a>
+            </div>
+            <div class="user-info" id="loginButton" style="display: none;">
+                <a href="/auth/login" class="auth-button">Sign In</a>
+            </div>
             <h1>🏊‍♂️ 🚴‍♂️ 🏃‍♂️</h1>
             <h1>Triathlon Program Generator</h1>
             <p>AI-Powered Training Programs for Triathlon Athletes</p>
@@ -310,6 +349,38 @@
             window.location.href = `/programs/${id}`;
         }
         
+        // Check authentication status
+        async function checkAuth() {
+            try {
+                const response = await fetch('/api/auth/user');
+                const data = await response.json();
+                
+                if (data.authenticated && data.email) {
+                    document.getElementById('userEmail').textContent = data.email || data.name;
+                    document.getElementById('userInfo').style.display = 'flex';
+                    document.getElementById('loginButton').style.display = 'none';
+                    // User is authenticated, load programs
+                    loadPrograms();
+                } else if (data.auth_enabled) {
+                    document.getElementById('userInfo').style.display = 'none';
+                    document.getElementById('loginButton').style.display = 'flex';
+                    // Auth is enabled but user is not logged in
+                    document.getElementById('programsList').innerHTML = 
+                        '<p style="color: #666;">Please sign in to view your programs.</p>';
+                } else {
+                    // Auth is not enabled, load programs anyway
+                    loadPrograms();
+                }
+            } catch (error) {
+                console.error('Error checking auth:', error);
+                // On error, try to load programs anyway
+                loadPrograms();
+            }
+        }
+        
+        // Check auth on page load (will handle loading programs)
+        checkAuth();
+        
         // Handle form submission
         document.getElementById('workoutForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -356,16 +427,19 @@
                 
             } catch (error) {
                 console.error('Error:', error);
-                document.getElementById('error').textContent = 
-                    `Error generating program: ${String(error.message || error)}`;
+                // Check if it's an authentication error
+                if (error.message.includes('Not authenticated') || error.message.includes('401')) {
+                    document.getElementById('error').innerHTML = 
+                        'Please <a href="/auth/login" style="color: white; text-decoration: underline;">sign in</a> to generate a training program.';
+                } else {
+                    document.getElementById('error').textContent = 
+                        `Error generating program: ${String(error.message || error)}`;
+                }
                 document.getElementById('error').style.display = 'block';
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('generateBtn').disabled = false;
             }
         });
-        
-        // Load programs on page load
-        loadPrograms();
     </script>
 </body>
 </html>

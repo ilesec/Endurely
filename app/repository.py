@@ -10,9 +10,10 @@ class ProgramRepository:
     """Repository for managing training programs in the database."""
     
     @staticmethod
-    def save_program(db: Session, program: TrainingProgram, request_data: dict) -> SavedProgram:
+    def save_program(db: Session, program: TrainingProgram, request_data: dict, user_id: Optional[int] = None) -> SavedProgram:
         """Save a training program to the database."""
         db_program = SavedProgram(
+            user_id=user_id,
             goal=request_data["goal"],
             fitness_level=request_data["fitness_level"],
             duration_weeks=request_data["duration_weeks"],
@@ -26,27 +27,36 @@ class ProgramRepository:
         return db_program
     
     @staticmethod
-    def get_program(db: Session, program_id: int) -> Optional[SavedProgram]:
+    def get_program(db: Session, program_id: int, user_id: Optional[int] = None) -> Optional[SavedProgram]:
         """Retrieve a program by ID."""
-        return db.query(SavedProgram).filter(SavedProgram.id == program_id).first()
+        query = db.query(SavedProgram).filter(SavedProgram.id == program_id)
+        if user_id is not None:
+            query = query.filter(SavedProgram.user_id == user_id)
+        return query.first()
     
     @staticmethod
     def list_programs(
         db: Session, 
         skip: int = 0, 
         limit: int = 100,
-        goal: Optional[str] = None
+        goal: Optional[str] = None,
+        user_id: Optional[int] = None
     ) -> List[SavedProgram]:
         """List all saved programs with optional filtering."""
         query = db.query(SavedProgram)
+        if user_id is not None:
+            query = query.filter(SavedProgram.user_id == user_id)
         if goal:
             query = query.filter(SavedProgram.goal == goal)
         return query.order_by(SavedProgram.created_at.desc()).offset(skip).limit(limit).all()
     
     @staticmethod
-    def delete_program(db: Session, program_id: int) -> bool:
+    def delete_program(db: Session, program_id: int, user_id: Optional[int] = None) -> bool:
         """Delete a program by ID."""
-        program = db.query(SavedProgram).filter(SavedProgram.id == program_id).first()
+        query = db.query(SavedProgram).filter(SavedProgram.id == program_id)
+        if user_id is not None:
+            query = query.filter(SavedProgram.user_id == user_id)
+        program = query.first()
         if program:
             db.delete(program)
             db.commit()
@@ -66,10 +76,12 @@ class WorkoutHistoryRepository:
         duration_minutes: int,
         distance_km: Optional[float],
         notes: Optional[str],
-        rating: Optional[int]
+        rating: Optional[int],
+        user_id: Optional[int] = None
     ) -> WorkoutHistory:
         """Log a completed workout."""
         workout = WorkoutHistory(
+            user_id=user_id,
             program_id=program_id,
             sport=sport,
             title=title,
@@ -89,10 +101,13 @@ class WorkoutHistoryRepository:
         program_id: Optional[int] = None,
         sport: Optional[str] = None,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
+        user_id: Optional[int] = None
     ) -> List[WorkoutHistory]:
         """Retrieve workout history with optional filtering."""
         query = db.query(WorkoutHistory)
+        if user_id is not None:
+            query = query.filter(WorkoutHistory.user_id == user_id)
         if program_id:
             query = query.filter(WorkoutHistory.program_id == program_id)
         if sport:
@@ -100,9 +115,11 @@ class WorkoutHistoryRepository:
         return query.order_by(WorkoutHistory.completed_at.desc()).offset(skip).limit(limit).all()
     
     @staticmethod
-    def get_workout_stats(db: Session, sport: Optional[str] = None) -> dict:
+    def get_workout_stats(db: Session, sport: Optional[str] = None, user_id: Optional[int] = None) -> dict:
         """Get aggregate statistics for workouts."""
         query = db.query(WorkoutHistory)
+        if user_id is not None:
+            query = query.filter(WorkoutHistory.user_id == user_id)
         if sport:
             query = query.filter(WorkoutHistory.sport == sport)
         
