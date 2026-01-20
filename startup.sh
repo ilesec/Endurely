@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Startup script for Azure App Services
-echo "Starting Triathlon Program Generator..."
+echo "Starting Endurely..."
 
 # Create database if it doesn't exist
 python -c "from app.database import init_db; init_db()"

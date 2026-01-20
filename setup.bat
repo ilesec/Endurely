@@ -1,6 +1,6 @@
 @echo off
 echo ================================================
-echo Triathlon Program Generator - Setup Script
+echo Endurely - Setup Script
 echo ================================================
 echo.
 

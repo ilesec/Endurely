@@ -1,12 +1,38 @@
 # Entra External ID Authentication Setup
 
-This guide walks you through setting up Microsoft Entra External ID (formerly Azure AD B2C) for multi-user authentication in the Triathlon Program Generator.
+This guide walks you through setting up Microsoft Entra External ID (formerly Azure AD B2C) for multi-user authentication in the Endurely app.
 
 ## Prerequisites
 
 - Azure subscription with access to Microsoft Entra External ID
-- Azure App Service already deployed (triathlon-program-generator.azurewebsites.net)
+- Azure App Service with system-assigned managed identity enabled
+- Azure OpenAI resource with managed identity access configured
 - Admin access to configure authentication
+
+## Azure OpenAI Managed Identity (Required)
+
+**Your App Service needs managed identity access to Azure OpenAI.** The deployment script handles this automatically, but you can verify:
+
+```bash
+# 1. Check managed identity is enabled
+az webapp identity show --resource-group endurely-rg --name endurely-app
+
+# 2. Verify role assignment exists
+az role assignment list \
+  --assignee <principal-id> \
+  --scope /subscriptions/<sub-id>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<openai-name>
+
+# 3. Verify environment variables
+az webapp config appsettings show --resource-group endurely-rg --name endurely-app --name AZURE_AI_AUTH
+
+# Should be: AZURE_AI_AUTH=entra_id
+```
+
+**Benefits of Managed Identity:**
+- No API keys to manage or rotate
+- Automatic token refresh
+- Better security and compliance
+- Simplified configuration
 
 ## Step 1: Create Entra External ID Tenant
 
@@ -15,8 +41,8 @@ This guide walks you through setting up Microsoft Entra External ID (formerly Az
 3. Click "Create" to create a new External ID tenant
 4. Choose tenant type: **External**
 5. Fill in tenant details:
-   - Organization name: `Triathlon Program Generator`
-   - Initial domain name: `triathlonprogram` (or your preferred name)
+   - Organization name: 
+   - Initial domain name: 
    - Country/Region: Select your country
 6. Click "Review + Create" and then "Create"
 7. Note the **Tenant ID** (you'll need this later)
@@ -26,11 +52,11 @@ This guide walks you through setting up Microsoft Entra External ID (formerly Az
 1. In your new External ID tenant, go to **App registrations**
 2. Click "New registration"
 3. Fill in the details:
-   - Name: `Triathlon Program Generator`
+   - Name: 
    - Supported account types: **Accounts in any identity provider or organizational directory (for authenticating users with user flows)**
    - Redirect URI:
      - Platform: **Web**
-     - URI: `https://triathlon-program-generator.azurewebsites.net/auth/callback`
+     - URI: `<your URL>/auth/callback`
 4. Click "Register"
 5. Note the **Application (client) ID** - this is your `ENTRA_CLIENT_ID`
 6. Note the **Directory (tenant) ID** - this is your `ENTRA_TENANT_ID`
@@ -39,7 +65,7 @@ This guide walks you through setting up Microsoft Entra External ID (formerly Az
 
 1. In your app registration, go to **Certificates & secrets**
 2. Click "New client secret"
-3. Add a description: `Triathlon App Secret`
+3. Add a description: `App Secret`
 4. Choose expiration: 24 months (or your preferred duration)
 5. Click "Add"
 6. **IMPORTANT**: Copy the **Value** immediately - this is your `ENTRA_CLIENT_SECRET`
@@ -83,18 +109,28 @@ This guide walks you through setting up Microsoft Entra External ID (formerly Az
 
 ## Step 7: Configure Azure App Service Environment Variables
 
-1. Go to your Azure App Service: `triathlon-program-generator`
+1. Go to your Azure App Service in the Azure Portal
 2. Navigate to **Configuration** → **Application settings**
-3. Add the following new application settings:
+3. Add or verify the following application settings:
 
-```
+```bash
+# Authentication Settings
 ENABLE_AUTH=true
 ENTRA_TENANT_ID=<your-tenant-id>
 ENTRA_CLIENT_ID=<your-client-id>
 ENTRA_CLIENT_SECRET=<your-client-secret>
-ENTRA_REDIRECT_URI=https://triathlon-program-generator.azurewebsites.net/auth/callback
+ENTRA_CIAM_DOMAIN=<your-subdomain>
+ENTRA_REDIRECT_URI=https://<your-app>.azurewebsites.net/auth/callback
 SESSION_SECRET_KEY=<generate-a-secure-random-key>
+
+# Azure OpenAI Settings (should already be configured by deployment script)
+# Using v1 API - no version parameter needed!
+AZURE_AI_ENDPOINT=https://<your-openai>.openai.azure.com/
+AZURE_AI_DEPLOYMENT_NAME=gpt-4o-mini
+AZURE_AI_AUTH=entra_id
 ```
+
+**Important**: Ensure `AZURE_AI_AUTH` is set to `entra_id` (not `api_key`) to use managed identity.
 
 **To generate a secure SESSION_SECRET_KEY**, run:
 ```bash
@@ -112,7 +148,7 @@ The new authentication system requires database changes. You have two options:
 1. SSH into your App Service or use App Service Console
 2. Delete the existing database:
 ```bash
-rm triathlon.db
+rm workouts.db
 ```
 3. Restart the app - database will be recreated with new schema
 
@@ -125,7 +161,7 @@ rm triathlon.db
 # migration.py
 from sqlalchemy import create_engine, text
 
-engine = create_engine('sqlite:///triathlon.db')
+engine = create_engine('sqlite:///workouts.db')
 
 with engine.connect() as conn:
     # Add user table
@@ -158,7 +194,7 @@ with engine.connect() as conn:
 
 ## Step 9: Test Authentication
 
-1. Open your application: `https://triathlon-program-generator.azurewebsites.net`
+1. Open your application: `https://<your URL>.azurewebsites.net`
 2. You should see a "Sign In" button
 3. Click "Sign In" - you'll be redirected to Entra External ID
 4. Create a new account or sign in
@@ -180,7 +216,7 @@ with engine.connect() as conn:
 
 **Solution**: Verify that the redirect URI in your app registration exactly matches:
 ```
-https://triathlon-program-generator.azurewebsites.net/auth/callback
+https://<your URL>.azurewebsites.net/auth/callback
 ```
 
 ### Invalid Client Secret

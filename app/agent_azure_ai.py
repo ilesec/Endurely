@@ -1,8 +1,12 @@
-"""Agent implementation using Azure AI Studio (Azure OpenAI-compatible endpoint)."""
+"""Agent implementation using Azure OpenAI with managed identity support.
+
+This implementation uses the AzureOpenAI client with automatic token refresh
+via Azure managed identity, eliminating the need for API key management.
+"""
 from typing import Dict, Any
 from openai import AzureOpenAI
 import json
-from azure.identity import DefaultAzureCredential
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 
 from app.config import settings
 from app.utils import assign_weekdays_to_workouts
@@ -11,26 +15,34 @@ from app.models import WorkoutRequest, TrainingProgram
 
 
 class TriathlonWorkoutAgentAzureAI:
-    """AI Agent using Azure AI Studio (model determined by deployment name)."""
+    """AI Agent using Azure OpenAI with managed identity authentication."""
     
     def __init__(self):
         if not settings.azure_ai_endpoint:
             raise ValueError("AZURE_AI_ENDPOINT is required when LLM_PROVIDER=azure_ai")
 
+        # For AzureOpenAI client, use the base endpoint without /openai path
+        base_endpoint = settings.azure_ai_endpoint.rstrip('/')
+        # Remove any /openai or /openai/v1 suffixes
+        if base_endpoint.endswith('/openai/v1'):
+            base_endpoint = base_endpoint[:-11]
+        elif base_endpoint.endswith('/openai'):
+            base_endpoint = base_endpoint[:-7]
+
         auth_mode = (settings.azure_ai_auth or "api_key").lower().strip()
         if auth_mode in {"entra_id", "aad", "managed_identity", "mi"}:
-            credential = DefaultAzureCredential(
-                managed_identity_client_id=settings.azure_ai_managed_identity_client_id
+            # v1 API with managed identity using get_bearer_token_provider
+            token_provider = get_bearer_token_provider(
+                DefaultAzureCredential(
+                    managed_identity_client_id=settings.azure_ai_managed_identity_client_id
+                ),
+                "https://cognitiveservices.azure.com/.default"
             )
-
-            def token_provider() -> str:
-                token = credential.get_token("https://cognitiveservices.azure.com/.default")
-                return token.token
-
+            
             self.client = AzureOpenAI(
-                azure_endpoint=settings.azure_ai_endpoint,
+                azure_endpoint=base_endpoint,
                 azure_ad_token_provider=token_provider,
-                api_version=settings.azure_ai_api_version,
+                api_version="2024-10-21",  # Use a stable API version
             )
         else:
             if not settings.azure_ai_api_key:
@@ -38,9 +50,9 @@ class TriathlonWorkoutAgentAzureAI:
                     "AZURE_AI_API_KEY is required when AZURE_AI_AUTH=api_key"
                 )
             self.client = AzureOpenAI(
-                azure_endpoint=settings.azure_ai_endpoint,
+                azure_endpoint=base_endpoint,
                 api_key=settings.azure_ai_api_key,
-                api_version=settings.azure_ai_api_version,
+                api_version="2024-10-21",
             )
 
         if not settings.azure_ai_deployment_name:

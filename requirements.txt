@@ -21,7 +21,7 @@ sqlalchemy==2.0.25
 # Authentication
 msal==1.28.0
 python-jose[cryptography]==3.3.0
-itsdangerous==2.1.2
+itsdangerous==2.2.0
 
 # Web UI
 jinja2==3.1.3

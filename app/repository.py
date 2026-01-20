@@ -14,6 +14,7 @@ class ProgramRepository:
         """Save a training program to the database."""
         db_program = SavedProgram(
             user_id=user_id,
+            sport_type=request_data.get("sport_type", "triathlon"),  # Default to triathlon for backward compatibility
             goal=request_data["goal"],
             fitness_level=request_data["fitness_level"],
             duration_weeks=request_data["duration_weeks"],

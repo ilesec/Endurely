@@ -1,5 +1,6 @@
 """Authentication module for Entra External ID (Azure AD B2C)."""
 import msal
+import logging
 from fastapi import Request, HTTPException, status
 from fastapi.responses import RedirectResponse
 from typing import Optional, Dict, Any
@@ -7,6 +8,8 @@ from datetime import datetime, timedelta
 from itsdangerous import URLSafeTimedSerializer, BadSignature
 from app.config import settings
 from app.database import SessionLocal, User
+
+logger = logging.getLogger(__name__)
 
 
 class AuthManager:

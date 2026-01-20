@@ -1,19 +1,33 @@
+"""FastAPI application for AI-powered endurance training program generator.
+
+Features:
+- Multi-sport support (triathlon, running, cycling, duathlon, aquathlon)
+- Multi-user authentication with Microsoft Entra External ID
+- Session-based authentication with httponly cookies
+- Azure OpenAI with managed identity (no API keys)
+- User data isolation
+- RESTful API and web interface
+"""
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional
 import json
 import uvicorn
 import sys
+import logging
 
 from app.database import init_db, get_db, User
 from app.models import WorkoutRequest, TrainingProgram, RaceDistance, Sport
 from app.config import settings
 from app.repository import ProgramRepository, WorkoutHistoryRepository
 from app.auth import auth_manager
+
+logger = logging.getLogger(__name__)
 
 
 def validate_configuration():
@@ -27,6 +41,15 @@ app = FastAPI(
     title="Triathlon Program Generator",
     description="AI-powered triathlon training program generator",
     version="1.0.0"
+)
+
+# Add CORS middleware to allow credentials
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://endurely-app.azurewebsites.net", "http://localhost:8000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Initialize database
@@ -85,9 +108,10 @@ async def auth_callback(code: str, state: str = None):
             key="session_token",
             value=session_token,
             httponly=True,
-            secure=True,  # Set to False for local development
+            secure=True,
             samesite="lax",
             max_age=86400 * 7,  # 7 days
+            path="/",
         )
         return response
     except Exception as e:
@@ -105,7 +129,10 @@ async def get_current_user_info(request: Request):
     """Get current authenticated user information."""
     user = await auth_manager.get_current_user(request)
     if not user:
-        return {"authenticated": False}
+        return {
+            "authenticated": False,
+            "auth_enabled": auth_manager.enabled,
+        }
     
     return {
         "authenticated": True,

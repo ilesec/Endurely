@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Triathlon Program Generator</title>
+    <title>Endurely - AI Endurance Training</title>
     <style>
         * {
             margin: 0;
@@ -217,6 +217,125 @@
             margin-top: 20px;
             display: none;
         }
+        
+        /* Splash Screen Styles */
+        .splash-screen {
+            display: none;
+            padding: 60px 40px;
+            text-align: center;
+        }
+        
+        .splash-hero {
+            margin-bottom: 60px;
+        }
+        
+        .splash-hero h2 {
+            font-size: 3em;
+            color: #333;
+            margin-bottom: 20px;
+            line-height: 1.2;
+        }
+        
+        .splash-hero p {
+            font-size: 1.3em;
+            color: #666;
+            margin-bottom: 40px;
+            line-height: 1.6;
+        }
+        
+        .splash-cta {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 50px;
+            border-radius: 50px;
+            font-size: 1.3em;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+        
+        .splash-cta:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.4);
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+            margin-bottom: 60px;
+        }
+        
+        .feature-card {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 15px;
+            transition: all 0.3s;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        
+        .feature-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+        
+        .feature-card h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 1.4em;
+        }
+        
+        .feature-card p {
+            color: #666;
+            line-height: 1.6;
+        }
+        
+        .sports-showcase {
+            margin-top: 40px;
+            padding-top: 40px;
+            border-top: 2px solid #eee;
+        }
+        
+        .sports-showcase h3 {
+            font-size: 2em;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        
+        .sports-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+        }
+        
+        .sport-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 25px;
+            border-radius: 25px;
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+        
+        .authenticated-content {
+            display: none;
+        }
+        
+        /* Loading state - shown initially until auth is determined */
+        .loading-state {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 60px;
+            color: #666;
+        }
     </style>
 </head>
 <body>
@@ -230,29 +349,87 @@
                 <a href="/auth/login" class="auth-button">Sign In</a>
             </div>
             <h1>🏊‍♂️ 🚴‍♂️ 🏃‍♂️</h1>
-            <h1>Triathlon Program Generator</h1>
-            <p>AI-Powered Training Programs for Triathlon Athletes</p>
+            <h1>Endurely</h1>
+            <p>AI-Powered Endurance Training Programs for Every Athlete</p>
         </header>
         
         <div class="content">
+            <!-- Loading state while checking authentication -->
+            <div class="loading-state" id="loadingState">
+                <p>Loading...</p>
+            </div>
+            
+            <!-- Splash Screen for unauthenticated users -->
+            <div class="splash-screen" id="splashScreen">
+                <div class="splash-hero">
+                    <h2>Transform Your Endurance Training with AI</h2>
+                    <p>Get personalized training programs designed by expert AI coach for triathlon, running, cycling, and multi-sport events</p>
+                    <a href="/auth/login" class="splash-cta">Get Started - Sign In Free</a>
+                </div>
+                
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">🎯</div>
+                        <h3>Personalized Plans</h3>
+                        <p>Tailored to your fitness level, available time, and race goals</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🧠</div>
+                        <h3>AI-Powered Coaching</h3>
+                        <p>Leveraging Azure OpenAI to create expert training programs</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">📊</div>
+                        <h3>Structured Periodization</h3>
+                        <p>Base building, intensity work, peak training, and taper phases</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">⚡</div>
+                        <h3>Progressive Overload</h3>
+                        <p>Gradual volume increases with built-in recovery weeks</p>
+                    </div>
+                </div>
+                
+                <div class="sports-showcase">
+                    <h3>Supported Sports & Events</h3>
+                    <div class="sports-list">
+                        <span class="sport-badge">🏊‍♂️ Triathlon</span>
+                        <span class="sport-badge">🏃‍♂️ Running</span>
+                        <span class="sport-badge">🚴‍♂️ Cycling</span>
+                        <span class="sport-badge">🏃‍♂️🚴‍♂️ Duathlon</span>
+                        <span class="sport-badge">🏊‍♂️🏃‍♂️ Aquathlon</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Authenticated Content -->
+            <div class="authenticated-content" id="authenticatedContent">
             <div class="form-section">
                 <h2 style="margin-bottom: 25px; color: #333;">Generate Your Training Program</h2>
                 
                 <form id="workoutForm">
                     <div class="form-group">
+                        <label for="sportType">Sport Type</label>
+                        <select id="sportType" name="sport_type" required>
+                            <option value="triathlon">Triathlon</option>
+                            <option value="running">Running</option>
+                            <option value="cycling">Cycling</option>
+                            <option value="duathlon">Duathlon</option>
+                            <option value="aquathlon">Aquathlon</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
                         <label for="goal">Race Goal</label>
                         <select id="goal" name="goal" required>
-                            <option value="sprint">Sprint (750m swim, 20km bike, 5km run)</option>
-                            <option value="olympic">Olympic (1.5km swim, 40km bike, 10km run)</option>
-                            <option value="half_ironman">Half Ironman (1.9km swim, 90km bike, 21.1km run)</option>
-                            <option value="full_ironman">Full Ironman (3.8km swim, 180km bike, 42.2km run)</option>
+                            <!-- Options populated dynamically based on sport type -->
                         </select>
                     </div>
                     
                     <div class="form-group">
                         <label for="fitness_level">Current Fitness Level</label>
                         <select id="fitness_level" name="fitness_level" required>
-                            <option value="beginner">Beginner - New to triathlon</option>
+                            <option value="beginner">Beginner - New to races</option>
                             <option value="intermediate">Intermediate - Have completed races</option>
                             <option value="advanced">Advanced - Regular competitor</option>
                         </select>
@@ -289,10 +466,58 @@
                     <p style="color: #666;">Loading programs...</p>
                 </div>
             </div>
+            </div>
+            <!-- End authenticated-content -->
         </div>
     </div>
     
     <script>
+        // Race distance options by sport type
+        const raceDistances = {
+            triathlon: [
+                { value: 'sprint', label: 'Sprint (750m swim, 20km bike, 5km run)' },
+                { value: 'olympic', label: 'Olympic (1.5km swim, 40km bike, 10km run)' },
+                { value: 'half_ironman', label: 'Half Ironman (1.9km swim, 90km bike, 21.1km run)' },
+                { value: 'full_ironman', label: 'Full Ironman (3.8km swim, 180km bike, 42.2km run)' }
+            ],
+            running: [
+                { value: '5k', label: '5K' },
+                { value: '10k', label: '10K' },
+                { value: 'half_marathon', label: 'Half Marathon' },
+                { value: 'marathon', label: 'Marathon' },
+                { value: 'ultra_50k', label: 'Ultra Marathon 50K' },
+                { value: 'ultra_100k', label: 'Ultra Marathon 100K' }
+            ],
+            cycling: [
+                { value: 'century', label: 'Century (100 miles / 160km)' },
+                { value: 'gran_fondo', label: 'Gran Fondo (100-200km)' },
+                { value: 'double_century', label: 'Double Century (200 miles / 320km)' }
+            ],
+            duathlon: [
+                { value: 'duathlon_sprint', label: 'Sprint (5km run, 20km bike, 2.5km run)' },
+                { value: 'duathlon_standard', label: 'Standard (10km run, 40km bike, 5km run)' },
+                { value: 'duathlon_long', label: 'Long (10km run, 60km bike, 10km run)' }
+            ],
+            aquathlon: [
+                { value: 'aquathlon_sprint', label: 'Sprint (750m swim, 5km run)' },
+                { value: 'aquathlon_standard', label: 'Standard (1km swim, 5km run)' }
+            ]
+        };
+        
+        // Update race distance options when sport type changes
+        document.getElementById('sportType').addEventListener('change', function() {
+            const sportType = this.value;
+            const goalSelect = document.getElementById('goal');
+            const distances = raceDistances[sportType] || [];
+            
+            goalSelect.innerHTML = distances.map(d => 
+                `<option value="${d.value}">${d.label}</option>`
+            ).join('');
+        });
+        
+        // Initialize with triathlon options
+        document.getElementById('sportType').dispatchEvent(new Event('change'));
+        
         async function getErrorMessage(response) {
             // Try to parse FastAPI-style JSON errors: { detail: "..." }
             try {
@@ -313,7 +538,9 @@
         // Load saved programs on page load
         async function loadPrograms() {
             try {
-                const response = await fetch('/api/workouts');
+                const response = await fetch('/api/workouts', {
+                    credentials: 'include'
+                });
                 if (!response.ok) {
                     const msg = await getErrorMessage(response);
                     throw new Error(msg);
@@ -329,7 +556,7 @@
                 
                 listEl.innerHTML = programs.map(p => `
                     <div class="program-card" onclick="viewProgram(${p.id})">
-                        <h3>${p.goal.replace('_', ' ').toUpperCase()}</h3>
+                        <h3>${p.sport_type ? p.sport_type.toUpperCase() + ' - ' : ''}${p.goal.replace('_', ' ').toUpperCase()}</h3>
                         <div class="program-meta">
                             <span><strong>Level:</strong> ${p.fitness_level}</span>
                             <span><strong>Duration:</strong> ${p.duration_weeks} weeks</span>
@@ -352,30 +579,41 @@
         // Check authentication status
         async function checkAuth() {
             try {
-                const response = await fetch('/api/auth/user');
+                const response = await fetch('/api/auth/user', {
+                    credentials: 'include'
+                });
                 const data = await response.json();
-                
+
+                // Hide loading state
+                document.getElementById('loadingState').style.display = 'none';
+
                 if (data.authenticated && data.email) {
+                    // User is authenticated - show main content
                     document.getElementById('userEmail').textContent = data.email || data.name;
                     document.getElementById('userInfo').style.display = 'flex';
                     document.getElementById('loginButton').style.display = 'none';
-                    // User is authenticated, load programs
+                    document.getElementById('splashScreen').style.display = 'none';
+                    document.getElementById('authenticatedContent').style.display = 'block';
                     loadPrograms();
                 } else if (data.auth_enabled) {
+                    // Auth is enabled but user is not logged in - show splash screen ONLY
                     document.getElementById('userInfo').style.display = 'none';
                     document.getElementById('loginButton').style.display = 'flex';
-                    // Auth is enabled but user is not logged in
-                    document.getElementById('programsList').innerHTML = 
-                        '<p style="color: #666;">Please sign in to view your programs.</p>';
+                    document.getElementById('splashScreen').style.display = 'block';
+                    document.getElementById('authenticatedContent').style.display = 'none';
                 } else {
-                    // Auth is not enabled, load programs anyway
+                    // Auth is not enabled - show main content
+                    document.getElementById('splashScreen').style.display = 'none';
+                    document.getElementById('authenticatedContent').style.display = 'block';
                     loadPrograms();
                 }
             } catch (error) {
                 console.error('Error checking auth:', error);
-                // On error, try to load programs anyway
-                loadPrograms();
-            }
+                // On error, hide loading and show splash screen (safe default when auth is enabled)
+                document.getElementById('loadingState').style.display = 'none';
+                document.getElementById('loginButton').style.display = 'flex';
+                document.getElementById('splashScreen').style.display = 'block';
+                document.getElementById('authenticatedContent').style.display = 'none';    }
         }
         
         // Check auth on page load (will handle loading programs)
@@ -387,6 +625,7 @@
             
             const formData = new FormData(e.target);
             const data = {
+                sport_type: formData.get('sport_type'),
                 goal: formData.get('goal'),
                 fitness_level: formData.get('fitness_level'),
                 available_hours_per_week: parseInt(formData.get('available_hours_per_week')),
@@ -405,6 +644,7 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
+                    credentials: 'include',
                     body: JSON.stringify(data)
                 });
                 

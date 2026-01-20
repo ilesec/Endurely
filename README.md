@@ -1,12 +1,13 @@
-# Triathlon Program Generator
+# Endurely
 
-AI-powered triathlon training program generator with structured workouts, periodization, and intelligent scheduling.
+AI-powered endurance training program generator for triathlon, running, cycling, and multi-sport athletes using Azure OpenAI.
 
 ## ✨ Features
 
+- **Multi-Sport Support**: Programs for triathlon, running, cycling, duathlon, and aquathlon
 - **Multi-User Support**: Secure authentication with Microsoft Entra External ID
 - **User Data Isolation**: Each user only sees their own training programs
-- **Structured Workouts**: Detailed swim, bike, and run workouts with intervals and recovery
+- **Structured Workouts**: Detailed workouts with intervals and recovery
 - **Intelligent Scheduling**: Workouts automatically distributed across the week
 - **Periodization**: Monthly training plans with progressive overload
 - **Multiple Race Distances**: Sprint, Olympic, Half Ironman, Full Ironman
@@ -68,37 +69,44 @@ python app/main.py
 
 ### Environment Variables
 
+**Azure OpenAI v1 API** - Automatic access to latest features with managed identity (no API keys needed!)
+
 Create `.env` file from `.env.example`:
 
 ```bash
-# LLM Provider (Azure OpenAI only)
-LLM_PROVIDER=azure_ai
-
-# === Azure OpenAI Configuration ===
+# Azure OpenAI Configuration
 AZURE_AI_ENDPOINT=https://your-resource.openai.azure.com/
 AZURE_AI_DEPLOYMENT_NAME=gpt-4o-mini
-AZURE_AI_API_VERSION=2024-02-15-preview
+AZURE_AI_AUTH=entra_id  # Use managed identity (recommended for Azure)
 
-# Authentication: "api_key" or "entra_id" (Managed Identity)
-AZURE_AI_AUTH=entra_id
-# AZURE_AI_API_KEY=xxx  # Only if using api_key auth
-
-# === Multi-User Authentication (Optional) ===
-# Set to false for single-user mode (development)
+# Authentication (Required for multi-user)
 ENABLE_AUTH=true
-
-# Microsoft Entra External ID configuration
 ENTRA_TENANT_ID=your-tenant-id
 ENTRA_CLIENT_ID=your-client-id
 ENTRA_CLIENT_SECRET=your-client-secret
 ENTRA_REDIRECT_URI=https://your-app.azurewebsites.net/auth/callback
+ENTRA_CIAM_DOMAIN=your-domain
 SESSION_SECRET_KEY=generate-a-secure-random-key
 
 # Database
 DATABASE_URL=sqlite:///./workouts.db
 ```
 
-**For authentication setup, see [ENTRA_EXTERNAL_ID_SETUP.md](ENTRA_EXTERNAL_ID_SETUP.md)**
+### Authentication Modes
+
+**Managed Identity (Recommended for Azure)**
+```bash
+AZURE_AI_AUTH=entra_id
+# No API key needed - uses Azure managed identity
+```
+
+**API Key (Development/Testing)**
+```bash
+AZURE_AI_AUTH=api_key
+AZURE_AI_API_KEY=your-api-key
+```
+
+**For detailed authentication setup, see [ENTRA_EXTERNAL_ID_SETUP.md](ENTRA_EXTERNAL_ID_SETUP.md)**
 
 ---
 
@@ -211,13 +219,21 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ## 🆘 Troubleshooting
 
-**"Authorization failed" with Managed Identity"**
+**"Authorization failed" or "AZURE_AI_API_KEY is required" with Managed Identity**
 ```bash
-# Re-grant permissions
+# Verify environment variables are set correctly
+az webapp config appsettings list --resource-group <rg> --name <app> | grep AZURE_AI
+
+# Should see: AZURE_AI_AUTH=entra_id (not api_key!)
+
+# Re-grant permissions if needed
 az role assignment create \
   --role "Cognitive Services OpenAI User" \
   --assignee <principal-id> \
   --scope <openai-resource-id>
+
+# Restart the app
+az webapp restart --resource-group <rg> --name <app>
 ```
 
 **App won't start**

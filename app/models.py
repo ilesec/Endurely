@@ -19,11 +19,43 @@ class Weekday(str, Enum):
     SUNDAY = "Sunday"
 
 
+class SportType(str, Enum):
+    """Type of endurance sport/event"""
+    TRIATHLON = "triathlon"
+    RUNNING = "running"
+    CYCLING = "cycling"
+    DUATHLON = "duathlon"
+    AQUATHLON = "aquathlon"
+
+
 class RaceDistance(str, Enum):
+    # Triathlon distances
     SPRINT = "sprint"  # 750m swim, 20km bike, 5km run
     OLYMPIC = "olympic"  # 1.5km swim, 40km bike, 10km run
     HALF_IRONMAN = "half_ironman"  # 1.9km swim, 90km bike, 21.1km run
     FULL_IRONMAN = "full_ironman"  # 3.8km swim, 180km bike, 42.2km run
+    
+    # Running distances
+    FIVE_K = "5k"
+    TEN_K = "10k"
+    HALF_MARATHON = "half_marathon"
+    MARATHON = "marathon"
+    ULTRA_50K = "ultra_50k"
+    ULTRA_100K = "ultra_100k"
+    
+    # Cycling distances
+    CENTURY = "century"  # 100 miles / 160km
+    GRAN_FONDO = "gran_fondo"  # 100-200km
+    DOUBLE_CENTURY = "double_century"  # 200 miles / 320km
+    
+    # Duathlon distances
+    DUATHLON_SPRINT = "duathlon_sprint"  # 5km run, 20km bike, 2.5km run
+    DUATHLON_STANDARD = "duathlon_standard"  # 10km run, 40km bike, 5km run
+    DUATHLON_LONG = "duathlon_long"  # 10km run, 60km bike, 10km run
+    
+    # Aquathlon distances
+    AQUATHLON_SPRINT = "aquathlon_sprint"  # 750m swim, 5km run
+    AQUATHLON_STANDARD = "aquathlon_standard"  # 1km swim, 5km run
 
 
 class FitnessLevel(str, Enum):
@@ -99,6 +131,7 @@ class TrainingProgram(BaseModel):
 
 
 class WorkoutRequest(BaseModel):
+    sport_type: SportType = Field(default=SportType.TRIATHLON, description="Type of endurance sport")
     goal: RaceDistance
     fitness_level: FitnessLevel
     available_hours_per_week: int = Field(ge=3, le=30)

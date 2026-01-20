@@ -33,6 +33,7 @@ class SavedProgram(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    sport_type = Column(String, nullable=False, default="triathlon")  # triathlon, running, cycling, duathlon, aquathlon
     goal = Column(String, nullable=False)
     fitness_level = Column(String, nullable=False)
     duration_weeks = Column(Integer, nullable=False)

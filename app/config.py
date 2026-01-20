@@ -31,20 +31,13 @@ class Settings(BaseSettings):
             "azure_ai_deployment_name",
         ),
     )
-    azure_ai_api_version: str = Field(
-        default="2024-02-15-preview",
-        validation_alias=AliasChoices(
-            "AZURE_AI_API_VERSION",
-            "AZURE_OPENAI_API_VERSION",
-            "azure_ai_api_version",
-        ),
-    )
-    # Azure AI auth mode: "api_key" or "entra_id" (Managed Identity / Entra ID)
+    # Azure AI auth mode: "entra_id" (Managed Identity, recommended) or "api_key"
     azure_ai_auth: str = Field(
-        default="api_key",
+        default="entra_id",
         validation_alias=AliasChoices(
             "AZURE_AI_AUTH",
             "AZURE_OPENAI_AUTH",
+            "AZURE_OPENAI_AUTH_MODE",
             "azure_ai_auth",
         ),
     )
@@ -68,15 +61,15 @@ class Settings(BaseSettings):
     )
     entra_tenant_id: Optional[str] = Field(
         default=None,
-        validation_alias=AliasChoices("ENTRA_TENANT_ID", "AZURE_AD_TENANT_ID", "entra_tenant_id"),
+        validation_alias=AliasChoices("ENTRA_TENANT_ID", "entra_tenant_id"),
     )
     entra_client_id: Optional[str] = Field(
         default=None,
-        validation_alias=AliasChoices("ENTRA_CLIENT_ID", "AZURE_AD_CLIENT_ID", "entra_client_id"),
+        validation_alias=AliasChoices("ENTRA_CLIENT_ID", "entra_client_id"),
     )
     entra_client_secret: Optional[str] = Field(
         default=None,
-        validation_alias=AliasChoices("ENTRA_CLIENT_SECRET", "AZURE_AD_CLIENT_SECRET", "entra_client_secret"),
+        validation_alias=AliasChoices("ENTRA_CLIENT_SECRET", "entra_client_secret"),
     )
     entra_redirect_uri: str = Field(
         default="http://localhost:8000/auth/callback",
@@ -89,7 +82,7 @@ class Settings(BaseSettings):
     )
     session_secret_key: str = Field(
         default="change-me-in-production-use-openssl-rand-hex-32",
-        validation_alias=AliasChoices("SESSION_SECRET_KEY", "SECRET_KEY", "session_secret_key"),
+        validation_alias=AliasChoices("SESSION_SECRET_KEY", "session_secret_key"),
     )
     
     class Config:
