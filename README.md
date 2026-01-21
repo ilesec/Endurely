@@ -17,16 +17,6 @@ AI-powered endurance training program generator for triathlon, running, cycling,
 
 ---
 
-## License
-
-This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
-
-If you run this software as a service (e.g. a web application),
-you must make the complete corresponding source code available
-to users of the service.
-
----
-
 ## 🚀 Quick Start
 
 ### Option 1: Deploy to Azure (Recommended)
@@ -273,7 +263,11 @@ az webapp restart --resource-group rg --name app-name
 
 ## 📝 License
 
-MIT License
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
+
+If you run this software as a service (e.g. a web application),
+you must make the complete corresponding source code available
+to users of the service.
 
 ---
 
