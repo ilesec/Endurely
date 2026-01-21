@@ -51,8 +51,11 @@ class Settings(BaseSettings):
         ),
     )
     
-    # Database
-    database_url: str = "sqlite:///./workouts.db"
+    # Database - Azure SQL Database
+    database_url: str = Field(
+        default="",
+        validation_alias=AliasChoices("DATABASE_URL", "database_url"),
+    )
     
     # Authentication (Entra External ID)
     enable_auth: bool = Field(

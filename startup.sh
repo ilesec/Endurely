@@ -3,8 +3,15 @@
 # Startup script for Azure App Services
 echo "Starting Endurely..."
 
-# Create database if it doesn't exist
-python -c "from app.database import init_db; init_db()"
+# Try to create database if it doesn't exist (but don't fail if it can't connect yet)
+python -c "try:
+    from app.database import init_db
+    init_db()
+    print('Database initialized successfully')
+except Exception as e:
+    print(f'Database initialization skipped: {e}')
+    print('App will attempt to initialize on first request')
+" || true
 
 # Get PORT from Azure environment variable (defaults to 8000)
 PORT="${PORT:-8000}"

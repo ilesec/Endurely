@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text, ForeignKey, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
@@ -5,7 +6,15 @@ from datetime import datetime
 from app.config import settings
 
 Base = declarative_base()
-engine = create_engine(settings.database_url, connect_args={"check_same_thread": False})
+
+# Configure engine for Azure SQL Database
+engine = create_engine(
+    settings.database_url,
+    pool_pre_ping=True,
+    pool_recycle=3600,
+    echo=False
+)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -14,9 +23,9 @@ class User(Base):
     __tablename__ = "users"
     
     id = Column(Integer, primary_key=True, index=True)
-    oid = Column(String, unique=True, index=True, nullable=False)  # Entra External ID object ID
-    email = Column(String, unique=True, index=True, nullable=False)
-    name = Column(String, nullable=True)
+    oid = Column(String(256), unique=True, index=True, nullable=False)  # Entra External ID object ID
+    email = Column(String(256), unique=True, index=True, nullable=False)
+    name = Column(String(256), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     is_active = Column(Boolean, default=True)
@@ -33,9 +42,9 @@ class SavedProgram(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    sport_type = Column(String, nullable=False, default="triathlon")  # triathlon, running, cycling, duathlon, aquathlon
-    goal = Column(String, nullable=False)
-    fitness_level = Column(String, nullable=False)
+    sport_type = Column(String(50), nullable=False, default="triathlon")  # triathlon, running, cycling, duathlon, aquathlon
+    goal = Column(String(256), nullable=False)
+    fitness_level = Column(String(50), nullable=False)
     duration_weeks = Column(Integer, nullable=False)
     available_hours_per_week = Column(Integer, nullable=False)
     program_json = Column(Text, nullable=False)  # Store full program as JSON
@@ -53,8 +62,8 @@ class WorkoutHistory(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     program_id = Column(Integer, nullable=True)  # Reference to SavedProgram
     completed_at = Column(DateTime, default=datetime.utcnow)
-    sport = Column(String, nullable=False)
-    title = Column(String, nullable=False)
+    sport = Column(String(50), nullable=False)
+    title = Column(String(256), nullable=False)
     duration_minutes = Column(Integer, nullable=False)
     distance_km = Column(Float, nullable=True)
     notes = Column(Text)

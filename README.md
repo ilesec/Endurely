@@ -17,6 +17,16 @@ AI-powered endurance training program generator for triathlon, running, cycling,
 
 ---
 
+## License
+
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
+
+If you run this software as a service (e.g. a web application),
+you must make the complete corresponding source code available
+to users of the service.
+
+---
+
 ## 🚀 Quick Start
 
 ### Option 1: Deploy to Azure (Recommended)
@@ -25,19 +35,20 @@ AI-powered endurance training program generator for triathlon, running, cycling,
 
 ```powershell
 # Clone and navigate to project
-cd triathlon-program-generator
+cd endurely
 
-# Deploy with Azure OpenAI + Managed Identity (no API keys!)
-.\deploy-azure-openai.ps1
+# Deploy with Azure OpenAI + Managed Identity + Azure SQL Database
+.\deploy-endurely.ps1
 ```
 
 This will:
+- Create Azure SQL Database for persistent storage
 - Create Azure OpenAI resource with GPT-4o-mini
 - Set up App Service with Managed Identity  
 - Configure secure authentication
 - Deploy your application
 
-**Time:** ~5-10 minutes | **Cost:** ~$15-20/month
+**Time:** ~5-10 minutes | **Cost:** ~$20-30/month
 
 ### Option 2: Docker (Local or Cloud)
 
@@ -88,8 +99,8 @@ ENTRA_REDIRECT_URI=https://your-app.azurewebsites.net/auth/callback
 ENTRA_CIAM_DOMAIN=your-domain
 SESSION_SECRET_KEY=generate-a-secure-random-key
 
-# Database
-DATABASE_URL=sqlite:///./workouts.db
+# Database - Azure SQL Database (automatically configured in Azure)
+DATAbase_URL=mssql+pyodbc://user:password@server.database.windows.net:1433/dbname?driver=ODBC+Driver+18+for+SQL+Server
 ```
 
 ### Authentication Modes
@@ -156,7 +167,7 @@ triathlon-program-generator/
 ├── Dockerfile                # Container definition
 ├── docker-compose.yml        # Local Docker setup
 ├── startup.sh                # App Service startup
-├── deploy-azure-openai.ps1   # Azure deployment script
+├── deploy-endurely.ps1       # Azure deployment script
 └── .env.example              # Environment template
 ```
 
@@ -170,7 +181,7 @@ triathlon-program-generator/
 - ✅ Use Azure Key Vault for secrets
 - ✅ Enable App Service authentication
 - ✅ Configure CORS properly
-- ✅ Use PostgreSQL/Azure SQL for production database
+- ✅ Use Azure SQL Database for persistent storage
 
 ### Managed Identity Setup (No API Keys!)
 
@@ -248,13 +259,15 @@ az webapp restart --resource-group rg --name app-name
 
 **Azure Setup (monthly):**
 - App Service B1: ~$13
+- Azure SQL Database Basic: ~$5
 - Azure OpenAI: ~$3-10 (usage-based)
-- **Total: ~$15-25/month**
+- **Total: ~$20-30/month**
 
 **Free Tier Option:**
 - App Service F1: $0 (with limitations)
+- Azure SQL Database Basic: ~$5
 - Azure OpenAI: ~$3-10/month (usage-based)
-- **Total: ~$3-10/month**
+- **Total: ~$8-15/month**
 
 ---
 
