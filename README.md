@@ -2,7 +2,7 @@
 
 AI-powered endurance training program generator for triathlon, running, cycling, and multi-sport athletes using Azure OpenAI.
 
-## ✨ Features
+## Features
 
 - **Multi-Sport Support**: Programs for triathlon, running, cycling, duathlon, and aquathlon
 - **Multi-User Support**: Secure authentication with Microsoft Entra External ID
@@ -21,47 +21,70 @@ AI-powered endurance training program generator for triathlon, running, cycling,
 
 ### Option 1: Deploy to Azure (Recommended)
 
-**Prerequisites:** Azure CLI installed and logged in
+**Prerequisites:** 
+- Azure CLI installed ([Install here](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli))
+- Azure subscription with Azure OpenAI access ([Request here](https://aka.ms/oai/access))
+- Logged in: `az login`
 
+**Deploy:**
 ```powershell
-# Clone and navigate to project
+# Navigate to project
 cd endurely
 
-# Deploy with Azure OpenAI + Managed Identity + Azure SQL Database
+# Run automated deployment
 .\deploy-endurely.ps1
 ```
 
-This will:
-- Create Azure SQL Database for persistent storage
+The script will automatically:
+- Create Azure Resource Group
+- Set up Azure SQL Database with Managed Identity
 - Create Azure OpenAI resource with GPT-4o-mini
-- Set up App Service with Managed Identity  
-- Configure secure authentication
+- Deploy App Service with Managed Identity
+- Configure all necessary settings
 - Deploy your application
 
-**Time:** ~5-10 minutes | **Cost:** ~$20-30/month
+**Time:** ~15-30 minutes | **Cost:** ~$20-30/month
 
-### Option 2: Docker (Local or Cloud)
+**After deployment:**
+1. (Optional) Configure authentication following [ENTRA_EXTERNAL_ID_SETUP.md](ENTRA_EXTERNAL_ID_SETUP.md)
+2. Access your app at the URL shown in deployment output
+3. Check status: `az webapp show --name endurely-app-xxxx --resource-group endurely-rg --query "state"`
+4. View logs: `az webapp log tail --resource-group endurely-rg --name endurely-app-xxxx`
 
-```bash
-# Copy and configure environment
-cp .env.example .env
-# Edit .env with your API keys
-
-# Run with Docker Compose
-docker-compose up -d
-
-# Access at http://localhost:8000
-```
-
-### Option 3: Local Python
+### Option 2: Local Development
 
 ```bash
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env
-# Edit .env with your API keys
+# Edit .env with your Azure OpenAI settings
 python app/main.py
+```
+
+Visit http://localhost:8000
+
+### Creating a Deployment Package
+
+To create a deployment package for manual deployment or CI/CD pipelines:
+
+```bash
+# Create deployment package
+python prepare_deployment.py package
+```
+
+This creates `deploy_package.zip` containing:
+- Application code (`app/` directory)
+- Python dependencies (`requirements.txt`)
+- Startup script (`startup.sh`)
+- Deployment configuration (`.deployment`)
+
+The package can be deployed to Azure App Service using:
+```bash
+az webapp deployment source config-zip \
+  --resource-group endurely-rg \
+  --name your-app-name \
+  --src deploy_package.zip
 ```
 
 ---
@@ -90,7 +113,8 @@ ENTRA_CIAM_DOMAIN=your-domain
 SESSION_SECRET_KEY=generate-a-secure-random-key
 
 # Database - Azure SQL Database (automatically configured in Azure)
-DATAbase_URL=mssql+pyodbc://user:password@server.database.windows.net:1433/dbname?driver=ODBC+Driver+18+for+SQL+Server
+DATABASE_URL=mssql+pyodbc://user:password@server.database.windows.net:1433/dbname?driver=ODBC+Driver+18+for+SQL+Server
+NOTE: SQLite isn’t used; the app expects Azure SQL (Managed Identity in Azure, SQL auth locally if you supply a connection string).
 ```
 
 ### Authentication Modes
@@ -142,7 +166,7 @@ curl -X POST https://your-app.azurewebsites.net/api/workouts/generate \
 ## 🏗️ Project Structure
 
 ```
-triathlon-program-generator/
+endurely/
 ├── app/
 │   ├── agent_azure_ai.py     # Azure OpenAI agent
 │   ├── prompts.py            # Shared prompt templates
@@ -154,10 +178,10 @@ triathlon-program-generator/
 │   ├── main.py               # FastAPI application
 │   └── templates/            # Web UI templates
 ├── requirements.txt          # Python dependencies
-├── Dockerfile                # Container definition
-├── docker-compose.yml        # Local Docker setup
 ├── startup.sh                # App Service startup
 ├── deploy-endurely.ps1       # Azure deployment script
+├── ENTRA_EXTERNAL_ID_SETUP.md
+├── README.md
 └── .env.example              # Environment template
 ```
 
@@ -190,9 +214,7 @@ az role assignment create \
 
 ## 📚 Additional Documentation
 
-- **[README.Docker.md](README.Docker.md)** - Docker deployment guide
-- **[AZURE_OPENAI_GUIDE.md](AZURE_OPENAI_GUIDE.md)** - Azure OpenAI reference
-- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Detailed deployment options
+- **[ENTRA_EXTERNAL_ID_SETUP.md](ENTRA_EXTERNAL_ID_SETUP.md)** - Authentication configuration guide
 
 ---
 

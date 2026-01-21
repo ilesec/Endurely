@@ -1,20 +1,25 @@
-# Endurely - Azure AI Foundry Deployment
-# This script creates everything needed for Endurely with Azure AI Foundry and Managed Identity
+# Endurely - Azure OpenAI Deployment
+# This script creates everything needed for Endurely with Azure OpenAI and Managed Identity
 # SPDX-License-Identifier: AGPL-3.0-or-later
+
+# Set error action preference to stop on errors
+$ErrorActionPreference = "Stop"
+
 # Load System.Web for URL encoding
 Add-Type -AssemblyName System.Web
 
-Write-Host "🚀 Endurely - Azure AI Foundry Deployment" -ForegroundColor Cyan
-Write-Host "=========================================" -ForegroundColor Cyan
+# Track script start time
+$scriptStartTime = Get-Date
+
+Write-Host "🚀 Endurely - Azure OpenAI Deployment" -ForegroundColor Cyan
+Write-Host "====================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Configuration
+# Configuration - Customizable variables
 $RESOURCE_GROUP = "endurely-rg"
 $LOCATION = "swedencentral"
 $APP_NAME = "endurely-app"
 $PLAN_NAME = "endurely-plan"
-$AI_HUB_NAME = "endurely-hub"
-$AI_PROJECT_NAME = "endurely-project"
 $OPENAI_NAME = "endurely-openai"
 $DEPLOYMENT_NAME = "gpt-4o-mini"
 $MODEL_NAME = "gpt-4o-mini"
@@ -31,8 +36,6 @@ Write-Host "  Location: $LOCATION"
 Write-Host "  App Name: $APP_NAME"
 Write-Host "  Database Server: $DB_SERVER_NAME"
 Write-Host "  Database Name: $DB_NAME"
-Write-Host "  AI Hub: $AI_HUB_NAME"
-Write-Host "  AI Project: $AI_PROJECT_NAME"
 Write-Host "  OpenAI: $OPENAI_NAME"
 Write-Host "  Model: $DEPLOYMENT_NAME ($MODEL_NAME)"
 Write-Host ""
@@ -215,119 +218,62 @@ if ($existingDeployment) {
     }
 }
 
-# Step 5: Create or use existing AI Hub (Azure AI Foundry)
-Write-Host "🏢 Step 5: Checking for existing AI Hub..." -ForegroundColor Green
+# Step 5: Create or use existing App Service Plan
+Write-Host "📱 Step 5: Checking for existing App Service Plan..." -ForegroundColor Green
 
-# Note: AI Hub requires ml extension
-az extension add --name ml --upgrade --only-show-errors 2>$null
-
-# First, try to find any existing AI Hub in the resource group
-$existingHubName = az ml workspace list `
-    --resource-group $RESOURCE_GROUP `
-    --query "[?kind=='hub'].name | [0]" `
-    --output tsv 2>$null
-
-if ($existingHubName) {
-    $AI_HUB_NAME = $existingHubName
-    Write-Host "   ✅ Found existing AI Hub: $AI_HUB_NAME" -ForegroundColor Green
-} else {
-    # Check if the default name exists
-    $existingHub = az ml workspace show `
-        --name $AI_HUB_NAME `
-        --resource-group $RESOURCE_GROUP `
-        --query "name" `
-        --output tsv 2>$null
-
-    if ($existingHub) {
-        Write-Host "   ✅ Using existing AI Hub: $AI_HUB_NAME" -ForegroundColor Green
-    } else {
-        Write-Host "   Creating AI Hub (Azure AI Foundry)..." -ForegroundColor Yellow
-        Write-Host "   (This may take 3-5 minutes)" -ForegroundColor Gray
-        
-        az ml workspace create `
-            --kind hub `
-            --name $AI_HUB_NAME `
-            --resource-group $RESOURCE_GROUP `
-            --location $LOCATION
-
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "⚠️  AI Hub creation failed - continuing without it" -ForegroundColor Yellow
-            Write-Host "   You can create it manually in Azure Portal if needed" -ForegroundColor Yellow
-        } else {
-            Write-Host "   ✅ AI Hub created: $AI_HUB_NAME" -ForegroundColor Green
-        }
-    }
-}
-
-# Step 6: Create or use existing AI Project
-if ($existingHubName -or $existingHub -or $LASTEXITCODE -eq 0) {
-    Write-Host "📁 Step 6: Checking for existing AI Project..." -ForegroundColor Green
-    
-    # First, try to find any existing AI Project in the resource group
-    $existingProjectName = az ml workspace list `
-        --resource-group $RESOURCE_GROUP `
-        --query "[?kind=='project'].name | [0]" `
-        --output tsv 2>$null
-    
-    if ($existingProjectName) {
-        $AI_PROJECT_NAME = $existingProjectName
-        Write-Host "   ✅ Found existing AI Project: $AI_PROJECT_NAME" -ForegroundColor Green
-    } else {
-        # Check if the default name exists
-        $existingProject = az ml workspace show `
-            --name $AI_PROJECT_NAME `
-            --resource-group $RESOURCE_GROUP `
-            --query "name" `
-            --output tsv 2>$null
-        
-        if ($existingProject) {
-            Write-Host "   ✅ Using existing AI Project: $AI_PROJECT_NAME" -ForegroundColor Green
-        } else {
-            Write-Host "   Creating AI Project..." -ForegroundColor Yellow
-            az ml workspace create `
-                --kind project `
-                --name $AI_PROJECT_NAME `
-                --resource-group $RESOURCE_GROUP `
-                --hub-id "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.MachineLearningServices/workspaces/$AI_HUB_NAME"
-            
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "   ✅ AI Project created: $AI_PROJECT_NAME" -ForegroundColor Green
-            }
-        }
-    }
-}
-
-# Step 7: Create App Service Plan
-Write-Host "📱 Step 7: Creating App Service Plan..." -ForegroundColor Green
-az appservice plan create `
+$existingPlan = az appservice plan show `
     --name $PLAN_NAME `
     --resource-group $RESOURCE_GROUP `
-    --location $LOCATION `
-    --is-linux `
-    --sku $SKU
+    --query "name" `
+    --output tsv 2>$null
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ Failed to create App Service Plan" -ForegroundColor Red
-    exit 1
+if ($existingPlan) {
+    Write-Host "   ✅ Using existing App Service Plan: $PLAN_NAME" -ForegroundColor Green
+} else {
+    Write-Host "   Creating App Service Plan..." -ForegroundColor Yellow
+    az appservice plan create `
+        --name $PLAN_NAME `
+        --resource-group $RESOURCE_GROUP `
+        --location $LOCATION `
+        --is-linux `
+        --sku $SKU
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "❌ Failed to create App Service Plan" -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "   ✅ App Service Plan created" -ForegroundColor Green
 }
-Write-Host "   ✅ App Service Plan created" -ForegroundColor Green
 
-# Step 8: Create Web App
-Write-Host "🌐 Step 8: Creating Web App..." -ForegroundColor Green
-az webapp create `
+# Step 6: Create or use existing Web App
+Write-Host "🌐 Step 6: Checking for existing Web App..." -ForegroundColor Green
+
+$existingApp = az webapp show `
     --name $APP_NAME `
     --resource-group $RESOURCE_GROUP `
-    --plan $PLAN_NAME `
-    --runtime "PYTHON:3.11"
+    --query "name" `
+    --output tsv 2>$null
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ Failed to create Web App" -ForegroundColor Red
-    exit 1
+if ($existingApp) {
+    Write-Host "   ✅ Using existing Web App: $APP_NAME" -ForegroundColor Green
+    Write-Host "   URL: https://$APP_NAME.azurewebsites.net" -ForegroundColor Gray
+} else {
+    Write-Host "   Creating Web App..." -ForegroundColor Yellow
+    az webapp create `
+        --name $APP_NAME `
+        --resource-group $RESOURCE_GROUP `
+        --plan $PLAN_NAME `
+        --runtime "PYTHON:3.11"
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "❌ Failed to create Web App" -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "   ✅ Web App created: https://$APP_NAME.azurewebsites.net" -ForegroundColor Green
 }
-Write-Host "   ✅ Web App created: https://$APP_NAME.azurewebsites.net" -ForegroundColor Green
 
-# Step 9: Enable Managed Identity
-Write-Host "🔐 Step 9: Enabling Managed Identity..." -ForegroundColor Green
+# Step 7: Enable Managed Identity
+Write-Host "🔐 Step 7: Enabling Managed Identity..." -ForegroundColor Green
 $PRINCIPAL_ID = az webapp identity assign `
     --name $APP_NAME `
     --resource-group $RESOURCE_GROUP `
@@ -341,8 +287,8 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "   ✅ Managed Identity enabled" -ForegroundColor Green
 Write-Host "   Principal ID: $PRINCIPAL_ID" -ForegroundColor Gray
 
-# Step 10: Grant OpenAI access to Managed Identity
-Write-Host "🔑 Step 10: Granting OpenAI access..." -ForegroundColor Green
+# Step 8: Grant OpenAI access to Managed Identity
+Write-Host "🔑 Step 8: Granting OpenAI access..." -ForegroundColor Green
 $OPENAI_ID = az cognitiveservices account show `
     --name $OPENAI_NAME `
     --resource-group $RESOURCE_GROUP `
@@ -383,8 +329,8 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "   ⚠️  Could not grant SQL access (may already exist)" -ForegroundColor Yellow
 }
 
-# Step 11: Configure App Settings
-Write-Host "⚙️  Step 11: Configuring app settings..." -ForegroundColor Green
+# Step 9: Configure App Settings
+Write-Host "⚙️  Step 9: Configuring app settings..." -ForegroundColor Green
 
 # Read Entra ID settings from .env if it exists
 $ENTRA_TENANT_ID = ""
@@ -431,11 +377,10 @@ $settings = @{
     "AZURE_AI_ENDPOINT" = $OPENAI_ENDPOINT
     "AZURE_AI_DEPLOYMENT_NAME" = $DEPLOYMENT_NAME
     "AZURE_AI_AUTH" = "entra_id"
-    # Legacy AZURE_OPENAI_* for backward compatibility (optional)
-    "AZURE_OPENAI_ENDPOINT" = $OPENAI_ENDPOINT
-    "AZURE_OPENAI_DEPLOYMENT" = $DEPLOYMENT_NAME
-    "AZURE_OPENAI_AUTH_MODE" = "entra_id"
     "SCM_DO_BUILD_DURING_DEPLOYMENT" = "true"
+    "ORYX_DISABLE_TELEMETRY" = "true"
+    "ENABLE_ORYX_BUILD" = "true"
+    "BUILD_FLAGS" = "UseExpressBuild"
     "ENABLE_AUTH" = "true"
     "SESSION_SECRET_KEY" = $SESSION_SECRET_KEY
     "ENTRA_REDIRECT_URI" = $ENTRA_REDIRECT_URI
@@ -465,20 +410,48 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "   ✅ App settings configured" -ForegroundColor Green
 }
 
-# Step 12: Deploy the application
-Write-Host "📦 Step 12: Deploying application code..." -ForegroundColor Green
+# Step 10: Configure startup command
+Write-Host "📝 Step 10: Configuring startup command..." -ForegroundColor Green
+az webapp config set `
+    --resource-group $RESOURCE_GROUP `
+    --name $APP_NAME `
+    --startup-file "startup.sh"
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "⚠️  Failed to configure startup command" -ForegroundColor Yellow
+} else {
+    Write-Host "   ✅ Startup command configured" -ForegroundColor Green
+}
+
+# Step 11: Deploy the application
+Write-Host "📦 Step 11: Deploying application code..." -ForegroundColor Green
 
 # Create deployment package
 if (Test-Path "deploy_package.zip") {
     Remove-Item "deploy_package.zip" -Force
 }
-Compress-Archive -Path app,requirements.txt,startup.sh,Dockerfile -DestinationPath deploy_package.zip -Force
+
+# Include all necessary files
+$filesToDeploy = @(
+    "app",
+    "requirements.txt",
+    "startup.sh",
+    ".deployment"
+)
+
+# Add Aptfile if it exists (for system dependencies)
+if (Test-Path "Aptfile") {
+    $filesToDeploy += "Aptfile"
+}
+
+Compress-Archive -Path $filesToDeploy -DestinationPath deploy_package.zip -Force
 
 # Deploy
-az webapp deployment source config-zip `
+az webapp deploy `
     --resource-group $RESOURCE_GROUP `
     --name $APP_NAME `
-    --src deploy_package.zip
+    --src-path deploy_package.zip `
+    --type zip
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ Deployment failed" -ForegroundColor Red
@@ -502,8 +475,6 @@ Write-Host "   Resource Group: $RESOURCE_GROUP"
 Write-Host "   Web App: $APP_NAME"
 Write-Host "   Database Server: $DB_SERVER_NAME"
 Write-Host "   Database: $DB_NAME"
-Write-Host "   AI Hub: $AI_HUB_NAME"
-Write-Host "   AI Project: $AI_PROJECT_NAME"
 Write-Host "   OpenAI: $OPENAI_NAME"
 Write-Host "   Model Deployment: $DEPLOYMENT_NAME"
 Write-Host ""

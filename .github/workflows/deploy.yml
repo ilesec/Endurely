@@ -1,0 +1,200 @@
+name: Deploy to Azure
+
+on:
+  push:
+    branches:
+      - main
+      - deploy
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  DEPLOYMENT_TIMEOUT: 300  # 5 minutes
+  AZURE_CLI_VERSION: '2.60.0'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      packages: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests (if any)
+        run: |
+          # Add your test commands here
+          echo "Running tests..."
+          # pytest tests/ || true  # Uncomment when you have tests
+
+      - name: Run code quality checks
+        run: |
+          # Install linting tools
+          pip install pylint flake8 black isort 2>/dev/null || true
+          
+          # Check code quality
+          echo "Checking code format..."
+          black --check app/ 2>/dev/null || true
+          flake8 app/ --max-line-length=100 --extend-ignore=E501,W503 2>/dev/null || true
+
+      - name: Set up Azure CLI
+        uses: azure/setup-azure-cli@v3
+        with:
+          azcliversion: ${{ env.AZURE_CLI_VERSION }}
+
+      - name: Log in to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Create deployment package
+        run: |
+          echo "Creating deployment package..."
+          cd $GITHUB_WORKSPACE
+          
+          # Create ZIP archive
+          zip -r deploy_package.zip \
+            app/ \
+            requirements.txt \
+            startup.sh \
+            .deployment \
+            -x ".git/*" ".github/*" ".env*" "__pycache__/*" "*.pyc" \
+            && echo "✅ Package created successfully" \
+            || (echo "❌ Failed to create package"; exit 1)
+          
+          # Show package size
+          ls -lh deploy_package.zip
+
+      - name: Deploy to Azure App Service (Production)
+        if: github.ref == 'refs/heads/main' && github.event_name != 'workflow_dispatch'
+        run: |
+          echo "🚀 Deploying to Production..."
+          az webapp deployment source config-zip \
+            --resource-group endurely-rg \
+            --name endurely-app-prod \
+            --src deploy_package.zip \
+            --timeout ${{ env.DEPLOYMENT_TIMEOUT }}
+          
+          echo "✅ Deployment completed"
+
+      - name: Deploy to Azure App Service (Manual)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          APP_NAME="endurely-app-${{ github.event.inputs.environment }}"
+          echo "🚀 Deploying to ${{ github.event.inputs.environment }}..."
+          
+          az webapp deployment source config-zip \
+            --resource-group endurely-rg \
+            --name $APP_NAME \
+            --src deploy_package.zip \
+            --timeout ${{ env.DEPLOYMENT_TIMEOUT }} \
+            || (echo "❌ Deployment failed"; exit 1)
+          
+          echo "✅ Deployment to ${{ github.event.inputs.environment }} completed"
+
+      - name: Verify deployment
+        run: |
+          echo "🔍 Verifying deployment..."
+          
+          # Wait for app to be ready
+          sleep 30
+          
+          APP_NAME=$(az webapp list --resource-group endurely-rg --query "[0].name" -o tsv)
+          echo "App name: $APP_NAME"
+          
+          # Get the app URL
+          APP_URL=$(az webapp show --resource-group endurely-rg --name $APP_NAME --query defaultHostName -o tsv)
+          echo "App URL: https://$APP_URL"
+          
+          # Check app status
+          STATUS=$(az webapp show --resource-group endurely-rg --name $APP_NAME --query state -o tsv)
+          echo "App Status: $STATUS"
+          
+          if [ "$STATUS" != "Running" ]; then
+            echo "⚠️  App is not running yet, it may take a few minutes to start"
+          else
+            echo "✅ App is running"
+          fi
+
+      - name: View deployment logs
+        if: always()
+        run: |
+          echo "📋 Recent deployment logs..."
+          
+          APP_NAME=$(az webapp list --resource-group endurely-rg --query "[0].name" -o tsv)
+          
+          # Get deployment history
+          az webapp deployment list \
+            --name $APP_NAME \
+            --resource-group endurely-rg \
+            --query "[0:3].[id, status, deployer, deployed_time]" \
+            --output table
+
+      - name: Stream application logs
+        if: failure()
+        run: |
+          echo "🔍 Streaming application logs..."
+          
+          APP_NAME=$(az webapp list --resource-group endurely-rg --query "[0].name" -o tsv)
+          
+          # Get recent logs
+          timeout 30 az webapp log tail \
+            --name $APP_NAME \
+            --resource-group endurely-rg \
+            || echo "Log streaming timed out (may mean app is still starting)"
+
+      - name: Send notification
+        if: always()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const status = context.payload.pull_request?.merged ? '✅ Deployed' : '⚠️ Build completed';
+            console.log(`Deployment ${status}`);
+
+  security-scan:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: 'app/'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+        continue-on-error: true
+
+      - name: Upload Trivy results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+        continue-on-error: true

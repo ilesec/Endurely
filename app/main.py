@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """FastAPI application for AI-powered endurance training program generator.
 
 Features:
@@ -146,7 +147,7 @@ async def get_current_user_info(request: Request):
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint for monitoring and container orchestration."""
+    """Health check endpoint for monitoring."""
     return {
         "status": "healthy",
         "service": "triathlon-program-generator",

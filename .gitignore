@@ -27,10 +27,9 @@ wheels/
 .env
 .venv
 
-# Database
-*.db
-*.sqlite
-*.sqlite3
+# Deployment artifacts
+deploy_package.zip
+*.zip
 
 # IDE
 .vscode/
